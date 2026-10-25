@@ -67,6 +67,10 @@ textarea{min-height:140px;resize:vertical}
 .pricerow{display:flex;align-items:center;gap:10px}
 .pricerow label{color:var(--muted);flex:none}
 .pricerow input{flex:1}
+.searchwrap{position:relative;display:flex;flex-direction:column}
+.searchwrap input{padding-right:48px}
+.clearx{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:40px;height:40px;border:0;background:none;color:var(--muted);font-size:1.5rem;line-height:1}
+.sheetcat{margin-top:-8px;color:var(--muted);font-size:.95rem}
 .hint{margin:0;color:var(--muted);font-size:.9rem}
 .mv{flex:none;background:var(--bg);border:1.5px solid var(--line);border-radius:8px;min-width:40px;min-height:36px;margin-left:6px;color:var(--accent);font-size:.9rem}
 .mv:disabled{opacity:.3}
@@ -168,6 +172,7 @@ nav button[aria-current=page]{background:var(--accent-soft);color:var(--accent)}
 <div id="sheetwrap" hidden>
   <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheettitle">
     <h2 id="sheettitle"></h2>
+    <div id="sheetcat" class="sheetcat"></div>
     <div id="already" class="already" hidden></div>
     <div class="stepper">
       <button type="button" id="minus" aria-label="Weniger">−</button>
@@ -431,7 +436,13 @@ function renderArtikel(root){
     queryText = s.value; const pos = s.selectionStart; render();
     const n = $('suche'); n.focus(); n.setSelectionRange(pos, pos);
   });
-  root.appendChild(s);
+  const sw = el('div', 'searchwrap'); sw.appendChild(s);
+  if (queryText){
+    const cx = el('button', 'clearx', '×'); cx.type = 'button'; cx.setAttribute('aria-label', 'Eingabe löschen');
+    cx.addEventListener('click', () => { queryText = ''; render(); $('suche').focus(); });
+    sw.appendChild(cx);
+  }
+  root.appendChild(sw);
   if (editMode) root.appendChild(el('p', 'hint', 'Tippe einen Artikel an, um ihn umzubenennen, zu verschieben oder zu löschen. Mit ▲ ▼ ordnest du die Kategorien.'));
   const q = queryText.trim().toLowerCase();
 
@@ -613,6 +624,7 @@ $('edelete').addEventListener('click', () => {
 function openSheet(p){
   sel = p; selQty = 1;
   $('sheettitle').textContent = p.name;
+  $('sheetcat').textContent = 'Kategorie: ' + p.cat;
   $('qtyout').textContent = '1';
   $('notein').value = '';
   $('pricein').value = p.price != null ? String(p.price).replace('.', ',') : '';
