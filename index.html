@@ -67,6 +67,10 @@ textarea{min-height:140px;resize:vertical}
 .pricerow{display:flex;align-items:center;gap:10px}
 .pricerow label{color:var(--muted);flex:none}
 .pricerow input{flex:1}
+.hint{margin:0;color:var(--muted);font-size:.9rem}
+.mv{flex:none;background:var(--bg);border:1.5px solid var(--line);border-radius:8px;min-width:40px;min-height:36px;margin-left:6px;color:var(--accent);font-size:.9rem}
+.mv:disabled{opacity:.3}
+.dangerbtn{background:none;border:1.5px solid var(--danger);color:var(--danger);border-radius:10px;min-height:46px;font-weight:600}
 .qty{font-weight:600;font-variant-numeric:tabular-nums;color:var(--accent)}
 li.done .label{color:var(--done);text-decoration:line-through}
 li.done .qty{color:var(--done)}
@@ -104,8 +108,8 @@ li.done .qty{color:var(--done)}
 .trashtext small{color:var(--muted);font-size:.85rem}
 
 /* Blätter und Dialoge */
-#sheetwrap,#askwrap{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;background:rgba(5,15,12,.5)}
-#sheet,#ask{width:100%;max-width:560px;background:var(--surface);border-radius:18px 18px 0 0;padding:20px 16px calc(20px + env(safe-area-inset-bottom,0px));
+#sheetwrap,#askwrap,#editwrap{position:fixed;inset:0;z-index:50;display:flex;align-items:center;justify-content:center;background:rgba(5,15,12,.5)}
+#sheet,#ask,#editbox{width:calc(100% - 32px);max-width:520px;background:var(--surface);border-radius:18px;padding:20px 16px;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:14px}
 #sheet .already{background:var(--accent-soft);border-radius:10px;padding:10px 12px;font-weight:500}
 #ask p{margin:0;color:var(--muted)}
@@ -146,6 +150,20 @@ nav button[aria-current=page]{background:var(--accent-soft);color:var(--accent)}
   <div id="view"></div>
   <div id="status"></div>
 </main>
+
+<div id="editwrap" hidden>
+  <div id="editbox" role="dialog" aria-modal="true" aria-labelledby="edittitle">
+    <h2 id="edittitle">Artikel bearbeiten</h2>
+    <input id="ename" type="text" maxlength="40" aria-label="Name">
+    <select id="ecat" aria-label="Kategorie"></select>
+    <div class="pricerow"><label for="eprice">Preis in €</label><input id="eprice" type="text" inputmode="decimal" placeholder="leer = kein Preis" aria-label="Preis in Euro"></div>
+    <div class="sheetbtns">
+      <button type="button" class="ghost" id="ecancel">Abbrechen</button>
+      <button type="button" class="primary" id="esave">Speichern</button>
+    </div>
+    <button type="button" class="dangerbtn" id="edelete">Artikel löschen</button>
+  </div>
+</div>
 
 <div id="sheetwrap" hidden>
   <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheettitle">
@@ -207,17 +225,17 @@ const firebaseConfig = {
   appId: "1:819986238991:web:12d40f74f9897ac2639d7a"
 };
 
-const CATS = ['Obst & Gemüse','Milch & Eier','Brot & Backwaren','Fleisch & Fisch','Tiefkühl','Vorrat','Getränke','Süßes & Snacks','Haushalt & Drogerie','Sonstiges'];
+const CATS = ['Obst & Gemüse','Milch, Käse & Eier','Brot & Backwaren','Fleisch & Fisch','Tiefkühl','Vorrat','Getränke','Süßes & Snacks','Haushalt & Drogerie','Sonstiges'];
 
 // Startauswahl: [id, Name, Kategorie, Nutzung]. Wird nur einmal angelegt, wenn die Artikelliste noch leer ist.
 const SEED = [
-  ['milch','Milch','Milch & Eier',20],['eier','Eier','Milch & Eier',19],['brot','Brot','Brot & Backwaren',18],['butter','Butter','Milch & Eier',17],
+  ['milch','Milch','Milch, Käse & Eier',20],['eier','Eier','Milch, Käse & Eier',19],['brot','Brot','Brot & Backwaren',18],['butter','Butter','Milch, Käse & Eier',17],
   ['baenen','Bananen','Obst & Gemüse',16],['aepfel','Äpfel','Obst & Gemüse',15],['tomaten','Tomaten','Obst & Gemüse',14],['gurke','Gurke','Obst & Gemüse',13],
-  ['kartoffeln','Kartoffeln','Obst & Gemüse',12],['zwiebeln','Zwiebeln','Obst & Gemüse',11],['kaese','Käse','Milch & Eier',10],['joghurt','Joghurt','Milch & Eier',9],
+  ['kartoffeln','Kartoffeln','Obst & Gemüse',12],['zwiebeln','Zwiebeln','Obst & Gemüse',11],['kaese','Käse','Milch, Käse & Eier',10],['joghurt','Joghurt','Milch, Käse & Eier',9],
   ['nudeln','Nudeln','Vorrat',8],['reis','Reis','Vorrat',7],['kaffee','Kaffee','Getränke',6],['wasser','Mineralwasser','Getränke',5],
   ['haehnchen','Hähnchen','Fleisch & Fisch',4],['wurst','Wurst','Fleisch & Fisch',3],['klopapier','Toilettenpapier','Haushalt & Drogerie',2],['spuelmittel','Spülmittel','Haushalt & Drogerie',1],
   ['paprika','Paprika','Obst & Gemüse',0],['karotten','Karotten','Obst & Gemüse',0],['salat','Salat','Obst & Gemüse',0],['zitrone','Zitronen','Obst & Gemüse',0],['trauben','Weintrauben','Obst & Gemüse',0],
-  ['sahne','Sahne','Milch & Eier',0],['quark','Quark','Milch & Eier',0],['broetchen','Brötchen','Brot & Backwaren',0],['toast','Toastbrot','Brot & Backwaren',0],
+  ['sahne','Sahne','Milch, Käse & Eier',0],['quark','Quark','Milch, Käse & Eier',0],['broetchen','Brötchen','Brot & Backwaren',0],['toast','Toastbrot','Brot & Backwaren',0],
   ['hack','Hackfleisch','Fleisch & Fisch',0],['lachs','Lachs','Fleisch & Fisch',0],['tkpizza','Tiefkühlpizza','Tiefkühl',0],['tkgemuese','Tiefkühlgemüse','Tiefkühl',0],['eis','Eis','Tiefkühl',0],
   ['mehl','Mehl','Vorrat',0],['zucker','Zucker','Vorrat',0],['oel','Öl','Vorrat',0],['muesli','Müsli','Vorrat',0],
   ['saft','Saft','Getränke',0],['bier','Bier','Getränke',0],['tee','Tee','Getränke',0],
@@ -225,6 +243,13 @@ const SEED = [
   ['zahnpasta','Zahnpasta','Haushalt & Drogerie',0],['duschgel','Duschgel','Haushalt & Drogerie',0],['muellbeutel','Müllbeutel','Haushalt & Drogerie',0]
 ];
 
+const normCat = (c) => (c === 'Milch & Eier' || String(c).toLowerCase() === 'milch & eier') ? 'Milch, Käse & Eier' : c;
+let catOrder = CATS.slice();
+function setCatOrder(a){
+  const v = (Array.isArray(a) ? a : []).map(normCat).filter((c, i, arr) => CATS.indexOf(c) >= 0 && arr.indexOf(c) === i);
+  CATS.forEach((c) => { if (v.indexOf(c) < 0) v.push(c); });
+  catOrder = v;
+}
 const $ = (id) => document.getElementById(id);
 const CHECK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3L13 4.5"/></svg>';
 
@@ -261,7 +286,7 @@ $('askwrap').addEventListener('click', (ev) => { if (ev.target === $('askwrap'))
 $('askyes').addEventListener('click', () => { const f = askYes; closeAsk(); if (f) f(); });
 document.addEventListener('keydown', (ev) => {
   if (ev.key !== 'Escape') return;
-  if (!$('askwrap').hidden) closeAsk(); else if (!$('sheetwrap').hidden) closeSheet();
+  if (!$('askwrap').hidden) closeAsk(); else if (!$('editwrap').hidden) closeEdit(); else if (!$('sheetwrap').hidden) closeSheet();
 });
 
 function confirmTrash(list){
@@ -297,17 +322,6 @@ function itemRow(it, pm){
 }
 
 function renderZettel(root){
-  const f = el('form', 'row'); f.autocomplete = 'off';
-  const inp = el('input'); inp.type = 'text'; inp.id = 'neu'; inp.maxLength = 80; inp.placeholder = 'Etwas anderes? Hier tippen'; inp.setAttribute('aria-label', 'Neuer Artikel');
-  const b = el('button', 'primary', 'Hinzufügen'); b.type = 'submit';
-  f.append(inp, b);
-  f.addEventListener('submit', (ev) => {
-    ev.preventDefault(); const t = inp.value.trim(); if (!t) return; inp.value = '';
-    write(() => addDoc(collection(fdb, 'items'), {text: t, qty: 1, note: '', done: false, ts: Date.now()}));
-    inp.focus();
-  });
-  root.appendChild(f);
-
   const open = items.filter((i) => !i.done);
   const done = items.filter((i) => i.done);
   if (!items.length){
@@ -395,23 +409,19 @@ function chip(p){
     b.appendChild(bd);
     b.setAttribute('aria-label', p.name + ', schon ' + ex.qty + ' auf dem Zettel');
   }
-  if (editMode){
-    const x = el('button', 'x', '×'); x.type = 'button'; x.setAttribute('aria-label', p.name + ' als Button entfernen');
-    x.addEventListener('click', (ev) => {
-      ev.stopPropagation();
-      ask('Button „' + p.name + '“ entfernen?', 'Der Artikel verschwindet aus der Auswahl. Das lässt sich nicht rückgängig machen.', 'Ja, entfernen', () => {
-        write(() => deleteDoc(D('products/' + p.id)));
-      });
-    });
-    b.appendChild(x);
-  }
-  b.addEventListener('click', () => { if (!editMode) openSheet(p); });
+  b.addEventListener('click', () => { if (editMode) openEdit(p); else openSheet(p); });
   return b;
 }
 
 const fmt = (n) => n.toFixed(2).replace('.', ',') + ' €';
 const parsePrice = (t) => { const v = parseFloat(String(t || '').replace(/[^0-9,.]/g, '').replace(',', '.')); return isFinite(v) && v >= 0 ? Math.round(v * 100) / 100 : null; };
 const prodById = () => { const m = {}; products.forEach((p) => { m[p.id] = p; }); return m; };
+function moveCat(i, dir){
+  const j = i + dir; if (j < 0 || j >= catOrder.length) return;
+  const a = catOrder.slice(); const t = a[i]; a[i] = a[j]; a[j] = t;
+  catOrder = a; render();
+  write(() => setDoc(D('meta/order'), {cats: a}));
+}
 const byName = (a, b) => a.name.localeCompare(b.name, 'de');
 
 function renderArtikel(root){
@@ -421,6 +431,7 @@ function renderArtikel(root){
     const n = $('suche'); n.focus(); n.setSelectionRange(pos, pos);
   });
   root.appendChild(s);
+  if (editMode) root.appendChild(el('p', 'hint', 'Tippe einen Artikel an, um ihn umzubenennen, zu verschieben oder zu löschen. Mit ▲ ▼ ordnest du die Kategorien.'));
   const q = queryText.trim().toLowerCase();
 
   if (q){
@@ -438,7 +449,7 @@ function renderArtikel(root){
       const tc = el('div', 'chips'); top.forEach((p) => tc.appendChild(chip(p))); tb.appendChild(tc);
       root.appendChild(tb);
     }
-    CATS.forEach((cat) => {
+    catOrder.forEach((cat, ci) => {
       const list = products.filter((p) => p.cat === cat).sort(byName);
       if (!list.length && !editMode) return;
       const d = el('details', 'cat'); if (openCats[cat]) d.open = true;
@@ -448,7 +459,17 @@ function renderArtikel(root){
       const meta = el('span', 'meta');
       if (onCount){ meta.appendChild(el('b', '', onCount + ' auf dem Zettel')); meta.appendChild(document.createTextNode(' · ')); }
       meta.appendChild(document.createTextNode(String(list.length)));
-      sm.appendChild(meta); d.appendChild(sm);
+      sm.appendChild(meta);
+      if (editMode){
+        const mv = (dir, label, dis) => {
+          const bt = el('button', 'mv', label); bt.type = 'button'; bt.disabled = dis;
+          bt.setAttribute('aria-label', cat + (dir < 0 ? ' nach oben' : ' nach unten') + ' verschieben');
+          bt.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); moveCat(ci, dir); });
+          return bt;
+        };
+        sm.append(mv(-1, '▲', ci === 0), mv(1, '▼', ci === catOrder.length - 1));
+      }
+      d.appendChild(sm);
       const cc = el('div', 'chips'); list.forEach((p) => cc.appendChild(chip(p))); d.appendChild(cc);
       root.appendChild(d);
     });
@@ -465,7 +486,7 @@ function renderArtikel(root){
     f.appendChild(el('h2', '', 'Neuen Artikel anlegen'));
     const ni = el('input'); ni.type = 'text'; ni.id = 'pname'; ni.maxLength = 40; ni.placeholder = 'Name, z. B. Hafermilch'; ni.setAttribute('aria-label', 'Name des Artikels');
     const cs = el('select'); cs.id = 'pcat'; cs.setAttribute('aria-label', 'Kategorie');
-    CATS.forEach((c) => { const o = el('option', '', c); o.value = c; cs.appendChild(o); });
+    catOrder.forEach((c) => { const o = el('option', '', c); o.value = c; cs.appendChild(o); });
     const sb = el('button', 'primary', 'Artikel anlegen'); sb.type = 'submit';
     f.append(ni, cs, sb);
     f.addEventListener('submit', (ev) => {
@@ -490,9 +511,14 @@ function importBulk(ta){
   const rows = [];
   ta.value.split('\n').forEach((line) => {
     const t = line.trim(); if (!t) return;
-    const c = t.split('|').map((x) => x.trim());
+    let c = t.split('|').map((x) => x.trim());
+    if (c.length < 2){
+      // Auch „Name – 1,99 €“ wird verstanden.
+      const m = t.match(/^(.*?)\s*[–-]\s*(\d+[.,]\d{2})\s*€?$/);
+      c = m ? [m[1].trim(), '', m[2]] : [t];
+    }
     if (!c[0]) return;
-    const catRaw = (c[1] || '').toLowerCase();
+    const catRaw = normCat(c[1] || '').toLowerCase();
     const cat = CATS.find((k) => k.toLowerCase() === catRaw) || null;
     rows.push({name: c[0].slice(0, 40), cat, price: c[2] ? parsePrice(c[2]) : null, uses: c[3] ? (parseInt(c[3], 10) || 0) : null});
   });
@@ -518,6 +544,11 @@ function importBulk(ta){
       nNew++;
     }
   });
+  // Früher falsch angelegte Buttons mit Preis im Namen („Butter – 2,59 €“) entfernen, wenn es den richtigen jetzt gibt.
+  products.forEach((p) => {
+    const clean = p.name.replace(/\s*[–-]\s*\d+[.,]\d{2}\s*€?\s*$/, '');
+    if (clean !== p.name && seen[key(clean)]) batch.delete(D('products/' + p.id));
+  });
   if (rows.some((r) => r.uses != null)){
     // Mitgelieferte Startartikel, die nicht in der Liste vorkommen, sollen die Top 20 nicht verfälschen.
     products.forEach((p) => { if (!seen[key(p.name)] && seedUses[p.id] != null && p.uses === seedUses[p.id] && p.uses > 0) batch.update(D('products/' + p.id), {uses: 0}); });
@@ -526,6 +557,43 @@ function importBulk(ta){
   ta.value = '';
   toast(nNew + ' neu, ' + nUpd + ' aktualisiert');
 }
+
+/* ---------- Artikel bearbeiten ---------- */
+let editing = null;
+function openEdit(p){
+  editing = p;
+  $('ename').value = p.name;
+  const cs = $('ecat'); cs.textContent = '';
+  catOrder.forEach((c) => { const o = el('option', '', c); o.value = c; cs.appendChild(o); });
+  cs.value = p.cat;
+  $('eprice').value = p.price != null ? String(p.price).replace('.', ',') : '';
+  $('editwrap').hidden = false;
+}
+function closeEdit(){ $('editwrap').hidden = true; editing = null; }
+$('ecancel').addEventListener('click', closeEdit);
+$('editwrap').addEventListener('click', (ev) => { if (ev.target === $('editwrap')) closeEdit(); });
+$('esave').addEventListener('click', () => {
+  const p = editing; if (!p) return;
+  const name = $('ename').value.trim().slice(0, 40);
+  if (!name){ toast('Bitte einen Namen eingeben'); return; }
+  const k = name.toLowerCase();
+  if (products.some((o) => o.id !== p.id && o.name.toLowerCase() === k)){ toast('Diesen Artikel gibt es schon'); return; }
+  const pr = $('eprice').value.trim() === '' ? null : parsePrice($('eprice').value);
+  const upd = {name, cat: $('ecat').value, price: pr};
+  closeEdit();
+  write(() => updateDoc(D('products/' + p.id), upd));
+  const ex = itemByPid[p.id];
+  if (ex && ex.text !== name) write(() => updateDoc(D('items/' + ex.id), {text: name}));
+  toast('„' + name + '“ gespeichert');
+});
+$('edelete').addEventListener('click', () => {
+  const p = editing; if (!p) return;
+  closeEdit();
+  ask('Button „' + p.name + '“ löschen?', 'Der Artikel verschwindet aus der Auswahl. Das lässt sich nicht rückgängig machen.', 'Ja, löschen', () => {
+    write(() => deleteDoc(D('products/' + p.id)));
+    toast('„' + p.name + '“ gelöscht');
+  });
+});
 
 /* ---------- Mengenblatt ---------- */
 function openSheet(p){
@@ -615,9 +683,12 @@ function startData(){
     itemByPid = {}; items.forEach((i) => { if (i.pid) itemByPid[i.pid] = i; });
     ready.items = true; render();
   }, fail));
+  unsubs.push(onSnapshot(D('meta/order'), (snap) => {
+    setCatOrder(snap.exists() ? (snap.data() || {}).cats : null); render();
+  }, () => {}));
   unsubs.push(onSnapshot(collection(fdb, 'products'), (snap) => {
     products = snap.docs.map((d) => { const x = d.data() || {};
-      return {id: d.id, name: String(x.name || ''), cat: CATS.indexOf(x.cat) >= 0 ? x.cat : 'Sonstiges', uses: +x.uses || 0, price: (typeof x.price === 'number' && x.price >= 0) ? x.price : null}; })
+      return {id: d.id, name: String(x.name || ''), cat: CATS.indexOf(normCat(x.cat)) >= 0 ? normCat(x.cat) : 'Sonstiges', uses: +x.uses || 0, price: (typeof x.price === 'number' && x.price >= 0) ? x.price : null}; })
       .filter((p) => p.name);
     ready.products = true;
     if (snap.empty && !snap.metadata.fromCache) seedIfEmpty();
@@ -627,7 +698,7 @@ function startData(){
 function stopData(){
   unsubs.forEach((u) => u()); unsubs = [];
   items = []; trashed = []; products = []; itemByPid = {}; ready = {items: false, products: false};
-  editMode = false; view = 'zettel'; queryText = '';
+  editMode = false; view = 'zettel'; queryText = ''; setCatOrder(null);
 }
 
 /* ---------- Anmeldung ---------- */
