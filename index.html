@@ -91,7 +91,12 @@ li.done .qty{color:var(--done)}
 .blockhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
 .blockhead small{color:var(--muted)}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
-.chip{position:relative;display:inline-flex;align-items:center;gap:8px;background:var(--surface);border:1.5px solid var(--line);border-radius:999px;padding:9px 14px;min-height:44px}
+.chip{position:relative;display:inline-flex;align-items:center;background:var(--surface);border:1.5px solid var(--line);border-radius:999px;min-height:44px}
+.chipmain{display:inline-flex;align-items:center;gap:8px;background:none;border:0;font:inherit;color:inherit;padding:9px 4px 9px 14px;min-height:44px;text-align:left}
+.star{background:none;border:0;min-width:44px;min-height:44px;font-size:1.3rem;line-height:1;color:var(--muted);padding:0 4px 0 0}
+.star.fav{color:#e0a100}
+.favname{flex:1;padding:12px 14px}
+ul li .mv{margin:0 4px}
 .chip.on{background:var(--accent-soft);border-color:var(--accent)}
 .chip .badge{display:inline-flex;align-items:center;gap:4px;background:var(--accent);color:var(--accent-fg);border-radius:999px;padding:1px 8px;font-size:.85rem;font-weight:600;font-variant-numeric:tabular-nums}
 .chip .badge svg{width:11px;height:11px}
@@ -261,7 +266,7 @@ const CHECK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke
 let items = [], trashed = [], products = [], itemByPid = {};
 let ready = {items: false, products: false};
 let view = 'zettel', queryText = '', editMode = false, openCats = {};
-let prefillName = '';
+let prefillName = '', favCustom = false, favSort = false;
 let sel = null, selQty = 1, askYes = null, toastTimer = null;
 let fdb = null, auth = null, unsubs = [], seeding = false, userEmail = '';
 
@@ -407,7 +412,8 @@ function renderTrash(root){
 /* ---------- Artikel ---------- */
 function chip(p){
   const ex = itemByPid[p.id]; const onList = ex && !ex.done;
-  const b = el('button', 'chip' + (onList ? ' on' : '')); b.type = 'button';
+  const w = el('div', 'chip' + (onList ? ' on' : ''));
+  const b = el('button', 'chipmain'); b.type = 'button';
   b.appendChild(el('span', '', p.name));
   if (p.price != null) b.appendChild(el('span', 'pr', fmt(p.price)));
   if (onList){
@@ -416,7 +422,38 @@ function chip(p){
     b.setAttribute('aria-label', p.name + ', schon ' + ex.qty + ' auf dem Zettel');
   }
   b.addEventListener('click', () => { if (editMode) openEdit(p); else openSheet(p); });
-  return b;
+  const st = el('button', 'star' + (p.fav ? ' fav' : ''), p.fav ? '★' : '☆'); st.type = 'button';
+  st.setAttribute('aria-label', p.name + (p.fav ? ' aus den Favoriten entfernen' : ' zu den Favoriten hinzufügen'));
+  st.addEventListener('click', () => toggleFav(p));
+  w.append(b, st);
+  return w;
+}
+
+/* ---------- Favoriten ---------- */
+const MAXFAV = 50;
+function favList(){
+  const f = products.filter((p) => p.fav);
+  if (favCustom) return f.sort((a, b) => (a.favOrder != null ? a.favOrder : 1e9) - (b.favOrder != null ? b.favOrder : 1e9) || byName(a, b));
+  return f.sort(byName);
+}
+function toggleFav(p){
+  if (!p.fav){
+    if (products.filter((x) => x.fav).length >= MAXFAV){ toast('Es sind höchstens ' + MAXFAV + ' Favoriten möglich'); return; }
+    const mx = products.reduce((m, x) => (x.fav && x.favOrder != null) ? Math.max(m, x.favOrder) : m, -1);
+    write(() => updateDoc(D('products/' + p.id), {fav: true, favOrder: mx + 1}));
+    toast('„' + p.name + '“ ist jetzt Favorit');
+  } else {
+    write(() => updateDoc(D('products/' + p.id), {fav: false}));
+    toast('„' + p.name + '“ ist kein Favorit mehr');
+  }
+}
+function moveFav(i, dir){
+  const arr = favList(); const j = i + dir; if (j < 0 || j >= arr.length) return;
+  const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  const batch = writeBatch(fdb);
+  arr.forEach((p, k) => batch.update(D('products/' + p.id), {favOrder: k}));
+  batch.set(D('meta/favs'), {custom: true});
+  write(() => batch.commit());
 }
 
 const fmt = (n) => n.toFixed(2).replace('.', ',') + ' €';
@@ -445,56 +482,8 @@ function renderArtikel(root){
   root.appendChild(sw);
   if (editMode) root.appendChild(el('p', 'hint', 'Tippe einen Artikel an, um ihn umzubenennen, zu verschieben oder zu löschen. Mit ▲ ▼ ordnest du die Kategorien.'));
   const q = queryText.trim().toLowerCase();
-
-  if (q){
-    // Zuerst Artikel, die mit den Buchstaben beginnen; dann Artikel mit einem Wort, das so beginnt; nur wenn nichts passt, alles mit diesen Buchstaben irgendwo.
-    const rank = (p) => { const n = p.name.toLowerCase();
-      if (n.indexOf(q) === 0) return 0;
-      if (n.split(/[\s\-\/(),]+/).some((w) => w.indexOf(q) === 0)) return 1;
-      return n.indexOf(q) >= 0 ? 2 : 9; };
-    let hits = products.filter((p) => rank(p) < 2).sort((a, b) => rank(a) - rank(b) || byName(a, b));
-    if (!hits.length) hits = products.filter((p) => rank(p) === 2).sort(byName);
-    const blk = el('div', 'block');
-    blk.appendChild(el('h2', '', hits.length ? 'Treffer' : 'Kein Artikel gefunden'));
-    const ch = el('div', 'chips'); hits.forEach((p) => ch.appendChild(chip(p))); blk.appendChild(ch);
-    root.appendChild(blk);
-  } else {
-    const top = products.filter((p) => (p.uses || 0) > 0)
-      .sort((a, b) => (b.uses || 0) - (a.uses || 0) || byName(a, b)).slice(0, 20);
-    if (top.length){
-      const tb = el('div', 'block');
-      const th = el('div', 'blockhead'); th.appendChild(el('h2', '', 'Häufig gekauft')); th.appendChild(el('small', '', 'Top ' + top.length)); tb.appendChild(th);
-      const tc = el('div', 'chips'); top.forEach((p) => tc.appendChild(chip(p))); tb.appendChild(tc);
-      root.appendChild(tb);
-    }
-    catOrder.forEach((cat, ci) => {
-      const list = products.filter((p) => p.cat === cat).sort(byName);
-      if (!list.length && !editMode) return;
-      const d = el('details', 'cat'); if (openCats[cat]) d.open = true;
-      d.addEventListener('toggle', () => { openCats[cat] = d.open; });
-      const sm = el('summary'); sm.appendChild(el('span', '', cat));
-      const onCount = list.filter((p) => { const e = itemByPid[p.id]; return e && !e.done; }).length;
-      const meta = el('span', 'meta');
-      if (onCount){ meta.appendChild(el('b', '', onCount + ' auf dem Zettel')); meta.appendChild(document.createTextNode(' · ')); }
-      meta.appendChild(document.createTextNode(String(list.length)));
-      sm.appendChild(meta);
-      if (editMode){
-        const mv = (dir, label, dis) => {
-          const bt = el('button', 'mv', label); bt.type = 'button'; bt.disabled = dis;
-          bt.setAttribute('aria-label', cat + (dir < 0 ? ' nach oben' : ' nach unten') + ' verschieben');
-          bt.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); moveCat(ci, dir); });
-          return bt;
-        };
-        sm.append(mv(-1, '▲', ci === 0), mv(1, '▼', ci === catOrder.length - 1));
-      }
-      d.appendChild(sm);
-      const cc = el('div', 'chips'); list.forEach((p) => cc.appendChild(chip(p))); d.appendChild(cc);
-      root.appendChild(d);
-    });
-  }
-
   const qShown = queryText.trim();
-  const tg = el('button', 'bigbtn', editMode ? 'Fertig' : (qShown ? 'Neu anlegen: „' + qShown + '“' : 'Artikel anlegen')); tg.type = 'button'; tg.id = 'togglenew';
+  const tg = el('button', 'bigbtn', editMode ? 'Fertig' : (qShown ? 'Neu anlegen: „' + qShown + '“' : 'Artikel anlegen/bearbeiten')); tg.type = 'button'; tg.id = 'togglenew';
   tg.addEventListener('click', () => {
     if (!editMode && qShown) prefillName = qShown.charAt(0).toUpperCase() + qShown.slice(1);
     editMode = !editMode; render();
@@ -520,67 +509,76 @@ function renderArtikel(root){
       queryText = name; editMode = false; render(); window.scrollTo(0, 0);
     });
     root.appendChild(f);
-
-    const g = el('form', 'addform'); g.autocomplete = 'off';
-    g.appendChild(el('h2', '', 'Mehrere auf einmal'));
-    g.appendChild(el('small', 'pr', 'Pro Zeile ein Artikel: Name | Kategorie | Preis | Häufigkeit (die letzten zwei sind optional). Gibt es den Namen schon, wird er aktualisiert statt doppelt angelegt.'));
-    const ta = el('textarea'); ta.id = 'bulk'; ta.placeholder = 'Hafermilch | Milch & Eier | 1,49'; ta.setAttribute('aria-label', 'Artikel einfügen');
-    const gb = el('button', 'primary', 'Artikel übernehmen'); gb.type = 'submit';
-    g.append(ta, gb);
-    g.addEventListener('submit', (ev) => { ev.preventDefault(); importBulk(ta); });
-    root.appendChild(g);
   }
-}
-
-function importBulk(ta){
-  const rows = [];
-  ta.value.split('\n').forEach((line) => {
-    const t = line.trim(); if (!t) return;
-    let c = t.split('|').map((x) => x.trim());
-    if (c.length < 2){
-      // Auch „Name – 1,99 €“ wird verstanden.
-      const m = t.match(/^(.*?)\s*[–-]\s*(\d+[.,]\d{2})\s*€?$/);
-      c = m ? [m[1].trim(), '', m[2]] : [t];
+  if (q){
+    // Zuerst Artikel, die mit den Buchstaben beginnen; dann Artikel mit einem Wort, das so beginnt; nur wenn nichts passt, alles mit diesen Buchstaben irgendwo.
+    const rank = (p) => { const n = p.name.toLowerCase();
+      if (n.indexOf(q) === 0) return 0;
+      if (n.split(/[\s\-\/(),]+/).some((w) => w.indexOf(q) === 0)) return 1;
+      return n.indexOf(q) >= 0 ? 2 : 9; };
+    let hits = products.filter((p) => rank(p) < 2).sort((a, b) => rank(a) - rank(b) || byName(a, b));
+    if (!hits.length) hits = products.filter((p) => rank(p) === 2).sort(byName);
+    const blk = el('div', 'block');
+    blk.appendChild(el('h2', '', hits.length ? 'Treffer' : 'Kein Artikel gefunden'));
+    const ch = el('div', 'chips'); hits.forEach((p) => ch.appendChild(chip(p))); blk.appendChild(ch);
+    root.appendChild(blk);
+  } else {
+    const favs = favList();
+    const fb = el('div', 'block');
+    const fh = el('div', 'blockhead'); fh.appendChild(el('h2', '', 'Favoriten'));
+    const fr = el('div', 'hright'); fr.appendChild(el('small', '', favs.length + ' von ' + MAXFAV));
+    if (favs.length > 1){
+      const sbt = el('button', 'link', favSort ? 'Fertig' : 'Sortieren'); sbt.type = 'button';
+      sbt.addEventListener('click', () => { favSort = !favSort; render(); });
+      fr.appendChild(sbt);
     }
-    if (!c[0]) return;
-    const catRaw = normCat(c[1] || '').toLowerCase();
-    const cat = CATS.find((k) => k.toLowerCase() === catRaw) || null;
-    rows.push({name: c[0].slice(0, 40), cat, price: c[2] ? parsePrice(c[2]) : null, uses: c[3] ? (parseInt(c[3], 10) || 0) : null});
-  });
-  if (!rows.length){ toast('Nichts zum Übernehmen gefunden'); return; }
-  const key = (n) => n.toLowerCase().replace(/\s+/g, ' ');
-  const known = {}; products.forEach((p) => { known[key(p.name)] = p; });
-  const seedUses = {}; SEED.forEach((s) => { seedUses[s[0]] = s[3]; });
-  let nNew = 0, nUpd = 0;
-  const seen = {};
-  const batch = writeBatch(fdb);
-  rows.forEach((r) => {
-    const k = key(r.name); if (seen[k]) return; seen[k] = true;
-    const ex = known[k];
-    if (ex){
-      const u = {};
-      if (r.cat) u.cat = r.cat;
-      if (r.price != null) u.price = r.price;
-      if (r.uses != null) u.uses = r.uses;
-      if (Object.keys(u).length) batch.update(D('products/' + ex.id), u);
-      nUpd++;
+    fh.appendChild(fr); fb.appendChild(fh);
+    if (!favs.length){
+      fb.appendChild(el('p', 'hint', 'Tippe bei einem Artikel auf ☆, dann steht er hier ganz oben.'));
+    } else if (favSort){
+      const ul = el('ul');
+      favs.forEach((p, k) => {
+        const li = el('li'); li.appendChild(el('span', 'favname', p.name));
+        const mvb = (dir, lab, dis) => { const bt = el('button', 'mv', lab); bt.type = 'button'; bt.disabled = dis;
+          bt.setAttribute('aria-label', p.name + (dir < 0 ? ' nach oben' : ' nach unten')); bt.addEventListener('click', () => moveFav(k, dir)); return bt; };
+        li.append(mvb(-1, '▲', k === 0), mvb(1, '▼', k === favs.length - 1));
+        ul.appendChild(li);
+      });
+      fb.appendChild(ul);
+      if (favCustom){
+        const al = el('button', 'link', 'Wieder alphabetisch ordnen'); al.type = 'button';
+        al.addEventListener('click', () => write(() => setDoc(D('meta/favs'), {custom: false})));
+        fb.appendChild(al);
+      }
     } else {
-      batch.set(doc(collection(fdb, 'products')), {name: r.name, cat: r.cat || 'Sonstiges', uses: r.uses || 0, price: r.price});
-      nNew++;
+      const fc = el('div', 'chips'); favs.forEach((p) => fc.appendChild(chip(p))); fb.appendChild(fc);
     }
-  });
-  // Früher falsch angelegte Buttons mit Preis im Namen („Butter – 2,59 €“) entfernen, wenn es den richtigen jetzt gibt.
-  products.forEach((p) => {
-    const clean = p.name.replace(/\s*[–-]\s*\d+[.,]\d{2}\s*€?\s*$/, '');
-    if (clean !== p.name && seen[key(clean)]) batch.delete(D('products/' + p.id));
-  });
-  if (rows.some((r) => r.uses != null)){
-    // Mitgelieferte Startartikel, die nicht in der Liste vorkommen, sollen die Top 20 nicht verfälschen.
-    products.forEach((p) => { if (!seen[key(p.name)] && seedUses[p.id] != null && p.uses === seedUses[p.id] && p.uses > 0) batch.update(D('products/' + p.id), {uses: 0}); });
+    root.appendChild(fb);
+    catOrder.forEach((cat, ci) => {
+      const list = products.filter((p) => p.cat === cat).sort(byName);
+      if (!list.length && !editMode) return;
+      const d = el('details', 'cat'); if (openCats[cat]) d.open = true;
+      d.addEventListener('toggle', () => { openCats[cat] = d.open; });
+      const sm = el('summary'); sm.appendChild(el('span', '', cat));
+      const onCount = list.filter((p) => { const e = itemByPid[p.id]; return e && !e.done; }).length;
+      const meta = el('span', 'meta');
+      if (onCount){ meta.appendChild(el('b', '', onCount + ' auf dem Zettel')); meta.appendChild(document.createTextNode(' · ')); }
+      meta.appendChild(document.createTextNode(String(list.length)));
+      sm.appendChild(meta);
+      if (editMode){
+        const mv = (dir, label, dis) => {
+          const bt = el('button', 'mv', label); bt.type = 'button'; bt.disabled = dis;
+          bt.setAttribute('aria-label', cat + (dir < 0 ? ' nach oben' : ' nach unten') + ' verschieben');
+          bt.addEventListener('click', (ev) => { ev.preventDefault(); ev.stopPropagation(); moveCat(ci, dir); });
+          return bt;
+        };
+        sm.append(mv(-1, '▲', ci === 0), mv(1, '▼', ci === catOrder.length - 1));
+      }
+      d.appendChild(sm);
+      const cc = el('div', 'chips'); list.forEach((p) => cc.appendChild(chip(p))); d.appendChild(cc);
+      root.appendChild(d);
+    });
   }
-  write(() => batch.commit());
-  ta.value = '';
-  toast(nNew + ' neu, ' + nUpd + ' aktualisiert');
 }
 
 /* ---------- Artikel bearbeiten ---------- */
@@ -675,7 +673,7 @@ function render(){
   if (view === 'zettel') renderZettel(V); else if (view === 'artikel') renderArtikel(V); else renderTrash(V);
   window.scrollTo(0, keepY);
 }
-function go(v){ view = v; if (v !== 'artikel') editMode = false; render(); window.scrollTo(0, 0); }
+function go(v){ view = v; if (v !== 'artikel'){ editMode = false; favSort = false; } render(); window.scrollTo(0, 0); }
 $('tabZettel').addEventListener('click', () => go('zettel'));
 $('tabArtikel').addEventListener('click', () => go('artikel'));
 $('trashbtn').addEventListener('click', () => go(view === 'trash' ? 'zettel' : 'trash'));
@@ -709,12 +707,13 @@ function startData(){
     itemByPid = {}; items.forEach((i) => { if (i.pid) itemByPid[i.pid] = i; });
     ready.items = true; render();
   }, fail));
+  unsubs.push(onSnapshot(D('meta/favs'), (snap) => { favCustom = !!(snap.exists() && (snap.data() || {}).custom); render(); }, () => {}));
   unsubs.push(onSnapshot(D('meta/order'), (snap) => {
     setCatOrder(snap.exists() ? (snap.data() || {}).cats : null); render();
   }, () => {}));
   unsubs.push(onSnapshot(collection(fdb, 'products'), (snap) => {
     products = snap.docs.map((d) => { const x = d.data() || {};
-      return {id: d.id, name: String(x.name || ''), cat: CATS.indexOf(normCat(x.cat)) >= 0 ? normCat(x.cat) : 'Sonstiges', uses: +x.uses || 0, price: (typeof x.price === 'number' && x.price >= 0) ? x.price : null}; })
+      return {id: d.id, name: String(x.name || ''), cat: CATS.indexOf(normCat(x.cat)) >= 0 ? normCat(x.cat) : 'Sonstiges', uses: +x.uses || 0, fav: !!x.fav, favOrder: typeof x.favOrder === 'number' ? x.favOrder : null, price: (typeof x.price === 'number' && x.price >= 0) ? x.price : null}; })
       .filter((p) => p.name);
     ready.products = true;
     if (snap.empty && !snap.metadata.fromCache) seedIfEmpty();
@@ -724,7 +723,7 @@ function startData(){
 function stopData(){
   unsubs.forEach((u) => u()); unsubs = [];
   items = []; trashed = []; products = []; itemByPid = {}; ready = {items: false, products: false};
-  editMode = false; view = 'zettel'; queryText = ''; setCatOrder(null);
+  editMode = false; view = 'zettel'; queryText = ''; favCustom = false; favSort = false; setCatOrder(null);
 }
 
 /* ---------- Anmeldung ---------- */
