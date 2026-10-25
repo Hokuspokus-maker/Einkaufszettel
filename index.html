@@ -38,7 +38,7 @@ h1{font-family:var(--font-display);font-size:2rem;line-height:1.1;margin:0;lette
 h2{font-family:var(--font-display);font-size:1.15rem;margin:0}
 button{font:inherit;cursor:pointer;color:inherit;-webkit-tap-highlight-color:transparent}
 :focus-visible{outline:3px solid var(--accent);outline-offset:2px}
-input[type=text],input[type=email],input[type=password],select{font:inherit;color:var(--fg);background:var(--surface);border:1.5px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0}
+input[type=text],input[type=email],input[type=password],textarea,select{font:inherit;color:var(--fg);background:var(--surface);border:1.5px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0}
 input::placeholder{color:var(--muted)}
 header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
 #view{display:flex;flex-direction:column;gap:12px}
@@ -58,6 +58,15 @@ li.done .chk{background:var(--accent)}
 li.done .chk svg{opacity:1}
 .label{flex:1;min-width:0;overflow-wrap:anywhere;background:none;border:0;text-align:left;padding:10px 0;display:flex;flex-direction:column}
 .label small{color:var(--muted);font-size:.85rem}
+.pr{color:var(--muted);font-size:.85rem;font-weight:500;font-variant-numeric:tabular-nums;white-space:nowrap}
+.chip .pr{margin-left:-2px}
+.total{background:var(--accent-soft);border:1.5px solid var(--accent);border-radius:12px;padding:12px 14px;display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.total b{font-family:var(--font-display);font-size:1.5rem;font-variant-numeric:tabular-nums}
+.total small{display:block;color:var(--muted);font-size:.85rem}
+textarea{min-height:140px;resize:vertical}
+.pricerow{display:flex;align-items:center;gap:10px}
+.pricerow label{color:var(--muted);flex:none}
+.pricerow input{flex:1}
 .qty{font-weight:600;font-variant-numeric:tabular-nums;color:var(--accent)}
 li.done .label{color:var(--done);text-decoration:line-through}
 li.done .qty{color:var(--done)}
@@ -147,6 +156,7 @@ nav button[aria-current=page]{background:var(--accent-soft);color:var(--accent)}
       <output id="qtyout" aria-live="polite">1</output>
       <button type="button" id="plus" aria-label="Mehr">+</button>
     </div>
+    <div class="pricerow"><label for="pricein">Preis in €</label><input id="pricein" type="text" inputmode="decimal" placeholder="z. B. 1,99" aria-label="Preis in Euro"></div>
     <input id="notein" type="text" maxlength="40" placeholder="Hinweis, z. B. 1 l, Bio (optional)" aria-label="Hinweis">
     <div class="sheetbtns">
       <button type="button" class="ghost" id="cancel">Abbrechen</button>
@@ -266,7 +276,7 @@ function confirmTrash(list){
 }
 
 /* ---------- Zettel ---------- */
-function itemRow(it){
+function itemRow(it, pm){
   const li = el('li', it.done ? 'done' : '');
   const chk = el('button', 'chk'); chk.type = 'button'; chk.innerHTML = CHECK;
   chk.setAttribute('aria-label', it.done ? 'Wieder offen setzen' : 'Als erledigt markieren');
@@ -276,6 +286,8 @@ function itemRow(it){
   main.appendChild(document.createTextNode(it.text));
   lab.appendChild(main);
   if (it.note) lab.appendChild(el('small', '', it.note));
+  const pp = it.pid && pm[it.pid] ? pm[it.pid].price : null;
+  if (pp != null) lab.appendChild(el('small', '', (it.qty > 1 ? it.qty + ' × ' + fmt(pp) + ' = ' + fmt(pp * it.qty) : fmt(pp))));
   const del = el('button', 'del', '×'); del.type = 'button'; del.setAttribute('aria-label', it.text + ' löschen');
   const toggle = () => write(() => updateDoc(D('items/' + it.id), {done: !it.done}));
   chk.addEventListener('click', toggle); lab.addEventListener('click', toggle);
@@ -303,14 +315,24 @@ function renderZettel(root){
     n.appendChild(document.createTextNode('Wechsle unten zu „Artikel“ und tippe einen Artikel an. Er erscheint sofort auf allen Handys, die diese Seite offen haben.'));
     root.appendChild(n); return;
   }
-  if (open.length){ const ul = el('ul'); open.forEach((i) => ul.appendChild(itemRow(i))); root.appendChild(ul); }
+  const pm = prodById();
+  if (open.length){
+    let sum = 0, noPrice = 0;
+    open.forEach((i) => { const pp = i.pid && pm[i.pid] ? pm[i.pid].price : null; if (pp == null) noPrice++; else sum += pp * i.qty; });
+    const tot = el('div', 'total');
+    const l = el('div'); l.appendChild(document.createTextNode('Summe (geschätzt)'));
+    l.appendChild(el('small', '', noPrice ? noPrice + (noPrice === 1 ? ' Artikel' : ' Artikel') + ' ohne Preis, nicht mitgerechnet' : 'Nach zuletzt bezahlten Preisen'));
+    tot.append(l, el('b', '', fmt(sum)));
+    root.appendChild(tot);
+    const ul = el('ul'); open.forEach((i) => ul.appendChild(itemRow(i, pm))); root.appendChild(ul);
+  }
   if (done.length){
     const head = el('div', 'sectionhead'); head.appendChild(el('span', '', 'Erledigt (' + done.length + ')'));
     const c = el('button', 'link', 'Erledigte entfernen'); c.type = 'button';
     c.addEventListener('click', () => confirmTrash(done));
     head.appendChild(c);
     root.appendChild(head);
-    const ul2 = el('ul'); done.forEach((i) => ul2.appendChild(itemRow(i))); root.appendChild(ul2);
+    const ul2 = el('ul'); done.forEach((i) => ul2.appendChild(itemRow(i, pm))); root.appendChild(ul2);
   }
 }
 
@@ -367,6 +389,7 @@ function chip(p){
   const ex = itemByPid[p.id]; const onList = ex && !ex.done;
   const b = el('button', 'chip' + (onList ? ' on' : '')); b.type = 'button';
   b.appendChild(el('span', '', p.name));
+  if (p.price != null) b.appendChild(el('span', 'pr', fmt(p.price)));
   if (onList){
     const bd = el('span', 'badge'); bd.innerHTML = CHECK; bd.appendChild(document.createTextNode(ex.qty > 1 ? ex.qty + '×' : 'auf dem Zettel'));
     b.appendChild(bd);
@@ -386,6 +409,9 @@ function chip(p){
   return b;
 }
 
+const fmt = (n) => n.toFixed(2).replace('.', ',') + ' €';
+const parsePrice = (t) => { const v = parseFloat(String(t || '').replace(/[^0-9,.]/g, '').replace(',', '.')); return isFinite(v) && v >= 0 ? Math.round(v * 100) / 100 : null; };
+const prodById = () => { const m = {}; products.forEach((p) => { m[p.id] = p; }); return m; };
 const byName = (a, b) => a.name.localeCompare(b.name, 'de');
 
 function renderArtikel(root){
@@ -448,7 +474,57 @@ function renderArtikel(root){
       ni.value = ''; openCats[cs.value] = true; toast('„' + name + '“ angelegt'); render();
     });
     root.appendChild(f);
+
+    const g = el('form', 'addform'); g.autocomplete = 'off';
+    g.appendChild(el('h2', '', 'Mehrere auf einmal'));
+    g.appendChild(el('small', 'pr', 'Pro Zeile ein Artikel: Name | Kategorie | Preis | Häufigkeit (die letzten zwei sind optional). Gibt es den Namen schon, wird er aktualisiert statt doppelt angelegt.'));
+    const ta = el('textarea'); ta.id = 'bulk'; ta.placeholder = 'Hafermilch | Milch & Eier | 1,49'; ta.setAttribute('aria-label', 'Artikel einfügen');
+    const gb = el('button', 'primary', 'Artikel übernehmen'); gb.type = 'submit';
+    g.append(ta, gb);
+    g.addEventListener('submit', (ev) => { ev.preventDefault(); importBulk(ta); });
+    root.appendChild(g);
   }
+}
+
+function importBulk(ta){
+  const rows = [];
+  ta.value.split('\n').forEach((line) => {
+    const t = line.trim(); if (!t) return;
+    const c = t.split('|').map((x) => x.trim());
+    if (!c[0]) return;
+    const catRaw = (c[1] || '').toLowerCase();
+    const cat = CATS.find((k) => k.toLowerCase() === catRaw) || null;
+    rows.push({name: c[0].slice(0, 40), cat, price: c[2] ? parsePrice(c[2]) : null, uses: c[3] ? (parseInt(c[3], 10) || 0) : null});
+  });
+  if (!rows.length){ toast('Nichts zum Übernehmen gefunden'); return; }
+  const key = (n) => n.toLowerCase().replace(/\s+/g, ' ');
+  const known = {}; products.forEach((p) => { known[key(p.name)] = p; });
+  const seedUses = {}; SEED.forEach((s) => { seedUses[s[0]] = s[3]; });
+  let nNew = 0, nUpd = 0;
+  const seen = {};
+  const batch = writeBatch(fdb);
+  rows.forEach((r) => {
+    const k = key(r.name); if (seen[k]) return; seen[k] = true;
+    const ex = known[k];
+    if (ex){
+      const u = {};
+      if (r.cat) u.cat = r.cat;
+      if (r.price != null) u.price = r.price;
+      if (r.uses != null) u.uses = r.uses;
+      if (Object.keys(u).length) batch.update(D('products/' + ex.id), u);
+      nUpd++;
+    } else {
+      batch.set(doc(collection(fdb, 'products')), {name: r.name, cat: r.cat || 'Sonstiges', uses: r.uses || 0, price: r.price});
+      nNew++;
+    }
+  });
+  if (rows.some((r) => r.uses != null)){
+    // Mitgelieferte Startartikel, die nicht in der Liste vorkommen, sollen die Top 20 nicht verfälschen.
+    products.forEach((p) => { if (!seen[key(p.name)] && seedUses[p.id] != null && p.uses === seedUses[p.id] && p.uses > 0) batch.update(D('products/' + p.id), {uses: 0}); });
+  }
+  write(() => batch.commit());
+  ta.value = '';
+  toast(nNew + ' neu, ' + nUpd + ' aktualisiert');
 }
 
 /* ---------- Mengenblatt ---------- */
@@ -457,6 +533,7 @@ function openSheet(p){
   $('sheettitle').textContent = p.name;
   $('qtyout').textContent = '1';
   $('notein').value = '';
+  $('pricein').value = p.price != null ? String(p.price).replace('.', ',') : '';
   const ex = itemByPid[p.id], a = $('already');
   if (ex && !ex.done){ a.hidden = false; a.textContent = 'Schon auf dem Zettel: ' + ex.qty + '×. Die neue Menge wird dazugerechnet.'; }
   else a.hidden = true;
@@ -475,9 +552,12 @@ $('confirm').addEventListener('click', () => {
   let data;
   if (ex && !ex.done) data = {text: p.name, pid: p.id, qty: ex.qty + qty, note: note || ex.note || '', done: false, ts: ex.ts};
   else data = {text: p.name, pid: p.id, qty, note, done: false, ts: Date.now()};
+  const pr = $('pricein').value.trim() === '' ? null : parsePrice($('pricein').value);
+  const upd = {uses: (p.uses || 0) + 1};
+  if (pr !== p.price && ($('pricein').value.trim() === '' || pr != null)) upd.price = pr;
   closeSheet();
   write(() => setDoc(D('items/p_' + p.id), data));
-  write(() => updateDoc(D('products/' + p.id), {uses: (p.uses || 0) + 1}));
+  write(() => updateDoc(D('products/' + p.id), upd));
   toast(data.qty + '× ' + p.name + ' auf dem Zettel');
 });
 
@@ -537,7 +617,7 @@ function startData(){
   }, fail));
   unsubs.push(onSnapshot(collection(fdb, 'products'), (snap) => {
     products = snap.docs.map((d) => { const x = d.data() || {};
-      return {id: d.id, name: String(x.name || ''), cat: CATS.indexOf(x.cat) >= 0 ? x.cat : 'Sonstiges', uses: +x.uses || 0}; })
+      return {id: d.id, name: String(x.name || ''), cat: CATS.indexOf(x.cat) >= 0 ? x.cat : 'Sonstiges', uses: +x.uses || 0, price: (typeof x.price === 'number' && x.price >= 0) ? x.price : null}; })
       .filter((p) => p.name);
     ready.products = true;
     if (snap.empty && !snap.metadata.fromCache) seedIfEmpty();
