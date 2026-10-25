@@ -256,6 +256,7 @@ const CHECK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke
 let items = [], trashed = [], products = [], itemByPid = {};
 let ready = {items: false, products: false};
 let view = 'zettel', queryText = '', editMode = false, openCats = {};
+let prefillName = '';
 let sel = null, selQty = 1, askYes = null, toastTimer = null;
 let fdb = null, auth = null, unsubs = [], seeding = false, userEmail = '';
 
@@ -435,7 +436,13 @@ function renderArtikel(root){
   const q = queryText.trim().toLowerCase();
 
   if (q){
-    const hits = products.filter((p) => p.name.toLowerCase().indexOf(q) >= 0).sort(byName);
+    // Zuerst Artikel, die mit den Buchstaben beginnen; dann Artikel mit einem Wort, das so beginnt; nur wenn nichts passt, alles mit diesen Buchstaben irgendwo.
+    const rank = (p) => { const n = p.name.toLowerCase();
+      if (n.indexOf(q) === 0) return 0;
+      if (n.split(/[\s\-\/(),]+/).some((w) => w.indexOf(q) === 0)) return 1;
+      return n.indexOf(q) >= 0 ? 2 : 9; };
+    let hits = products.filter((p) => rank(p) < 2).sort((a, b) => rank(a) - rank(b) || byName(a, b));
+    if (!hits.length) hits = products.filter((p) => rank(p) === 2).sort(byName);
     const blk = el('div', 'block');
     blk.appendChild(el('h2', '', hits.length ? 'Treffer' : 'Kein Artikel gefunden'));
     const ch = el('div', 'chips'); hits.forEach((p) => ch.appendChild(chip(p))); blk.appendChild(ch);
@@ -475,8 +482,10 @@ function renderArtikel(root){
     });
   }
 
-  const tg = el('button', 'bigbtn', editMode ? 'Fertig' : 'Artikel anlegen'); tg.type = 'button'; tg.id = 'togglenew';
+  const qShown = queryText.trim();
+  const tg = el('button', 'bigbtn', editMode ? 'Fertig' : (qShown ? 'Neu anlegen: „' + qShown + '“' : 'Artikel anlegen')); tg.type = 'button'; tg.id = 'togglenew';
   tg.addEventListener('click', () => {
+    if (!editMode && qShown) prefillName = qShown.charAt(0).toUpperCase() + qShown.slice(1);
     editMode = !editMode; render();
     if (editMode){ const b2 = $('togglenew'); if (b2) b2.scrollIntoView({block: 'start'}); }
   });
@@ -488,11 +497,16 @@ function renderArtikel(root){
     const cs = el('select'); cs.id = 'pcat'; cs.setAttribute('aria-label', 'Kategorie');
     catOrder.forEach((c) => { const o = el('option', '', c); o.value = c; cs.appendChild(o); });
     const sb = el('button', 'primary', 'Artikel anlegen'); sb.type = 'submit';
-    f.append(ni, cs, sb);
+    ni.value = prefillName; prefillName = '';
+    const pi = el('input'); pi.type = 'text'; pi.id = 'pprice'; pi.inputMode = 'decimal'; pi.placeholder = 'Preis in € (optional)'; pi.setAttribute('aria-label', 'Preis in Euro');
+    f.append(ni, cs, pi, sb);
     f.addEventListener('submit', (ev) => {
       ev.preventDefault(); const name = ni.value.trim(); if (!name) return;
-      write(() => addDoc(collection(fdb, 'products'), {name, cat: cs.value, uses: 0}));
-      ni.value = ''; openCats[cs.value] = true; toast('„' + name + '“ angelegt'); render();
+      if (products.some((o) => o.name.toLowerCase() === name.toLowerCase())){ toast('Diesen Artikel gibt es schon'); return; }
+      const price = pi.value.trim() === '' ? null : parsePrice(pi.value);
+      write(() => addDoc(collection(fdb, 'products'), {name, cat: cs.value, uses: 0, price}));
+      openCats[cs.value] = true; toast('„' + name + '“ angelegt');
+      queryText = name; editMode = false; render(); window.scrollTo(0, 0);
     });
     root.appendChild(f);
 
