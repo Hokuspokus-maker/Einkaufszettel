@@ -266,7 +266,7 @@ const CHECK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke
 let items = [], trashed = [], products = [], itemByPid = {};
 let ready = {items: false, products: false};
 let view = 'zettel', queryText = '', editMode = false, openCats = {};
-let prefillName = '', favCustom = false, favSort = false;
+let lastCat = '', prefillName = '', favCustom = false, favSort = false;
 let sel = null, selQty = 1, askYes = null, toastTimer = null;
 let fdb = null, auth = null, unsubs = [], seeding = false, userEmail = '';
 
@@ -496,6 +496,8 @@ function renderArtikel(root){
     const ni = el('input'); ni.type = 'text'; ni.id = 'pname'; ni.maxLength = 40; ni.placeholder = 'Name, z. B. Hafermilch'; ni.setAttribute('aria-label', 'Name des Artikels');
     const cs = el('select'); cs.id = 'pcat'; cs.setAttribute('aria-label', 'Kategorie');
     catOrder.forEach((c) => { const o = el('option', '', c); o.value = c; cs.appendChild(o); });
+    if (lastCat && catOrder.indexOf(lastCat) >= 0) cs.value = lastCat;
+    cs.addEventListener('change', () => { lastCat = cs.value; });
     const sb = el('button', 'primary', 'Artikel anlegen'); sb.type = 'submit';
     ni.value = prefillName; prefillName = '';
     const pi = el('input'); pi.type = 'text'; pi.id = 'pprice'; pi.inputMode = 'decimal'; pi.placeholder = 'Preis in € (optional)'; pi.setAttribute('aria-label', 'Preis in Euro');
@@ -506,7 +508,7 @@ function renderArtikel(root){
       const price = pi.value.trim() === '' ? null : parsePrice(pi.value);
       write(() => addDoc(collection(fdb, 'products'), {name, cat: cs.value, uses: 0, price}));
       openCats[cs.value] = true; toast('„' + name + '“ angelegt');
-      queryText = name; editMode = false; render(); window.scrollTo(0, 0);
+      lastCat = cs.value; ni.value = ''; pi.value = ''; setTimeout(() => { const n = $('pname'); if (n) n.focus({preventScroll: true}); }, 80);
     });
     root.appendChild(f);
   }
