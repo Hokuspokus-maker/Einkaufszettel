@@ -1,0 +1,604 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Einkaufszettel</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Einkauf">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#eef3f1">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Figtree:wght@400;500;600&display=swap">
+<style>
+/* Layout: schmale Spalte, Ansichten Zettel / Artikel / Gelöscht, feste Leiste unten, Mengenwahl als Blatt von unten */
+:root{
+  color-scheme:light;
+  --bg:#eef3f1; --surface:#ffffff; --fg:#14231f; --muted:#5d716b;
+  --line:#d5e0dc; --accent:#1f7a5c; --accent-fg:#ffffff; --accent-soft:#d9efe6; --done:#9aaba5; --danger:#b3412f;
+  --font-display:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --font-body:"Figtree","Segoe UI",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    color-scheme:dark;
+    --bg:#0f1a17; --surface:#172622; --fg:#e6f0ec; --muted:#8fa69e;
+    --line:#263934; --accent:#4fc19a; --accent-fg:#0b1a15; --accent-soft:#1d3a31; --done:#5f746d; --danger:#e58a78;
+  }
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font-body);font-size:17px;line-height:1.4;
+  padding-top:max(20px,env(safe-area-inset-top,0px));padding-bottom:110px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+main{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1{font-family:var(--font-display);font-size:2rem;line-height:1.1;margin:0;letter-spacing:-.01em}
+h2{font-family:var(--font-display);font-size:1.15rem;margin:0}
+button{font:inherit;cursor:pointer;color:inherit;-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+input[type=text],input[type=email],input[type=password],select{font:inherit;color:var(--fg);background:var(--surface);border:1.5px solid var(--line);border-radius:10px;padding:12px 14px;min-width:0}
+input::placeholder{color:var(--muted)}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+#view{display:flex;flex-direction:column;gap:12px}
+#count{color:var(--muted);font-size:.95rem;font-variant-numeric:tabular-nums;white-space:nowrap}
+.row{display:flex;gap:8px}
+.row input{flex:1}
+.primary{background:var(--accent);color:var(--accent-fg);border:0;border-radius:10px;padding:0 20px;font-weight:600;min-height:46px}
+.primary.danger{background:var(--danger)}
+
+/* Zettel */
+ul{list-style:none;margin:0;padding:0;background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+li{display:flex;align-items:center;gap:12px;padding:4px 6px 4px 14px;border-top:1px solid var(--line);min-height:56px}
+li:first-child{border-top:0}
+.chk{flex:none;width:28px;height:28px;border-radius:50%;border:2px solid var(--accent);background:transparent;display:grid;place-items:center;color:var(--accent-fg);padding:0}
+li.done .chk{background:var(--accent)}
+.chk svg{width:16px;height:16px;opacity:0}
+li.done .chk svg{opacity:1}
+.label{flex:1;min-width:0;overflow-wrap:anywhere;background:none;border:0;text-align:left;padding:10px 0;display:flex;flex-direction:column}
+.label small{color:var(--muted);font-size:.85rem}
+.qty{font-weight:600;font-variant-numeric:tabular-nums;color:var(--accent)}
+li.done .label{color:var(--done);text-decoration:line-through}
+li.done .qty{color:var(--done)}
+.del{flex:none;background:none;border:0;color:var(--muted);width:44px;height:44px;border-radius:8px;font-size:1.3rem;line-height:1}
+.del:hover{color:var(--danger)}
+.sectionhead{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-top:4px}
+.link{background:none;border:0;color:var(--accent);font-weight:600;font-size:.9rem;text-transform:none;letter-spacing:0;padding:8px 0}
+.link.danger{color:var(--danger)}
+.note{color:var(--muted);text-align:center;padding:28px 16px;background:var(--surface);border:1px dashed var(--line);border-radius:12px}
+.note b{display:block;color:var(--fg);font-family:var(--font-display);font-size:1.15rem;margin-bottom:4px}
+
+/* Artikel */
+.block{display:flex;flex-direction:column;gap:10px}
+.blockhead{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.blockhead small{color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{position:relative;display:inline-flex;align-items:center;gap:8px;background:var(--surface);border:1.5px solid var(--line);border-radius:999px;padding:9px 14px;min-height:44px}
+.chip.on{background:var(--accent-soft);border-color:var(--accent)}
+.chip .badge{display:inline-flex;align-items:center;gap:4px;background:var(--accent);color:var(--accent-fg);border-radius:999px;padding:1px 8px;font-size:.85rem;font-weight:600;font-variant-numeric:tabular-nums}
+.chip .badge svg{width:11px;height:11px}
+.chip .x{background:none;border:0;color:var(--danger);font-size:1.2rem;line-height:1;padding:0 0 0 2px}
+.cat{background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.cat summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;padding:14px;min-height:52px;font-weight:600}
+.cat summary::-webkit-details-marker{display:none}
+.cat summary .meta{color:var(--muted);font-weight:400;font-size:.9rem;font-variant-numeric:tabular-nums}
+.cat .chips{padding:0 14px 14px}
+.cat .meta b{color:var(--accent)}
+.bigbtn{margin-top:24px;scroll-margin-top:16px;width:100%;min-height:50px;padding:12px 14px;background:var(--surface);border:1.5px solid var(--line);border-radius:10px;font-weight:600;color:var(--accent)}
+.addform{display:flex;flex-direction:column;gap:8px;background:var(--surface);border:1px dashed var(--line);border-radius:12px;padding:14px}
+.hright{display:flex;align-items:center;gap:12px}
+.hbtn{background:var(--surface);border:1.5px solid var(--line);border-radius:999px;padding:6px 14px;font-size:.9rem;font-weight:600;color:var(--muted);min-height:38px;white-space:nowrap}
+.hbtn b{color:var(--accent);font-variant-numeric:tabular-nums}
+.acts{flex:none;display:flex;flex-direction:column;align-items:flex-end}
+.trashtext{flex:1;min-width:0;overflow-wrap:anywhere;padding:10px 0;display:flex;flex-direction:column}
+.trashtext small{color:var(--muted);font-size:.85rem}
+
+/* Blätter und Dialoge */
+#sheetwrap,#askwrap{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;background:rgba(5,15,12,.5)}
+#sheet,#ask{width:100%;max-width:560px;background:var(--surface);border-radius:18px 18px 0 0;padding:20px 16px calc(20px + env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:14px}
+#sheet .already{background:var(--accent-soft);border-radius:10px;padding:10px 12px;font-weight:500}
+#ask p{margin:0;color:var(--muted)}
+.stepper{display:flex;align-items:center;justify-content:center;gap:20px}
+.stepper button{width:54px;height:54px;border-radius:50%;border:1.5px solid var(--line);background:var(--bg);font-size:1.6rem;line-height:1}
+.stepper output{min-width:2.5ch;text-align:center;font-family:var(--font-display);font-size:2.4rem;font-variant-numeric:tabular-nums}
+.sheetbtns{display:flex;gap:8px}
+.sheetbtns .primary{flex:1}
+.ghost{background:none;border:1.5px solid var(--line);border-radius:10px;padding:0 18px;min-height:46px}
+
+/* Leiste unten */
+nav{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--surface);border-top:1px solid var(--line);
+  padding:8px max(16px,env(safe-area-inset-right,0px)) calc(8px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+nav .inner{max-width:560px;margin:0 auto;display:flex;gap:8px}
+nav button{flex:1;border:0;border-radius:10px;padding:11px 8px;background:transparent;font-weight:600;color:var(--muted);min-height:48px}
+nav button[aria-current=page]{background:var(--accent-soft);color:var(--accent)}
+
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:60;background:var(--fg);color:var(--bg);
+  border-radius:999px;padding:10px 18px;font-weight:500;max-width:calc(100% - 32px);text-align:center}
+#status{font-size:.85rem;color:var(--muted);text-align:center;min-height:1.2em}
+
+/* Anmeldung */
+#login{position:fixed;inset:0;z-index:70;background:var(--bg);display:flex;align-items:center;justify-content:center;
+  padding:16px max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px));overflow:auto}
+#login form{width:100%;max-width:380px;display:flex;flex-direction:column;gap:12px}
+#login p{margin:0;color:var(--muted)}
+#loginerr{color:var(--danger);min-height:1.3em}
+@media (prefers-reduced-motion:no-preference){ .chip{transition:background .15s,border-color .15s} }
+</style>
+</head>
+<body>
+
+<main id="app" hidden>
+  <header>
+    <h1 id="title">Einkaufszettel</h1>
+    <div class="hright"><span id="count" aria-live="polite"></span><button type="button" class="hbtn" id="trashbtn">Gelöscht</button></div>
+  </header>
+  <div id="view"></div>
+  <div id="status"></div>
+</main>
+
+<div id="sheetwrap" hidden>
+  <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheettitle">
+    <h2 id="sheettitle"></h2>
+    <div id="already" class="already" hidden></div>
+    <div class="stepper">
+      <button type="button" id="minus" aria-label="Weniger">−</button>
+      <output id="qtyout" aria-live="polite">1</output>
+      <button type="button" id="plus" aria-label="Mehr">+</button>
+    </div>
+    <input id="notein" type="text" maxlength="40" placeholder="Hinweis, z. B. 1 l, Bio (optional)" aria-label="Hinweis">
+    <div class="sheetbtns">
+      <button type="button" class="ghost" id="cancel">Abbrechen</button>
+      <button type="button" class="primary" id="confirm">Hinzufügen</button>
+    </div>
+  </div>
+</div>
+
+<div id="askwrap" hidden>
+  <div id="ask" role="alertdialog" aria-modal="true" aria-labelledby="asktitle" aria-describedby="asktext">
+    <h2 id="asktitle"></h2>
+    <p id="asktext"></p>
+    <div class="sheetbtns">
+      <button type="button" class="ghost" id="askno">Nein</button>
+      <button type="button" class="primary danger" id="askyes">Ja</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" role="status" hidden></div>
+<nav id="nav" hidden><div class="inner">
+  <button type="button" id="tabZettel">Zettel</button>
+  <button type="button" id="tabArtikel">Artikel</button>
+</div></nav>
+
+<div id="login">
+  <form id="loginform" autocomplete="on">
+    <h1>Einkaufszettel</h1>
+    <p id="loginmsg">Melde dich einmal an. Danach bleibst du auf diesem Handy angemeldet.</p>
+    <input id="email" name="email" type="email" inputmode="email" autocomplete="username" autocapitalize="none" autocorrect="off" placeholder="E-Mail-Adresse" aria-label="E-Mail-Adresse" required>
+    <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Passwort" aria-label="Passwort" required>
+    <button class="primary" type="submit" id="loginbtn">Anmelden</button>
+    <div id="loginerr" role="alert"></div>
+  </form>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, onSnapshot, query, orderBy,
+  addDoc, setDoc, updateDoc, deleteDoc, writeBatch, getDoc } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+const firebaseConfig = {
+  apiKey: "HIER-EINTRAGEN",
+  authDomain: "HIER-EINTRAGEN",
+  projectId: "HIER-EINTRAGEN",
+  storageBucket: "HIER-EINTRAGEN",
+  messagingSenderId: "HIER-EINTRAGEN",
+  appId: "HIER-EINTRAGEN"
+};
+
+const CATS = ['Obst & Gemüse','Milch & Eier','Brot & Backwaren','Fleisch & Fisch','Tiefkühl','Vorrat','Getränke','Süßes & Snacks','Haushalt & Drogerie','Sonstiges'];
+
+// Startauswahl: [id, Name, Kategorie, Nutzung]. Wird nur einmal angelegt, wenn die Artikelliste noch leer ist.
+const SEED = [
+  ['milch','Milch','Milch & Eier',20],['eier','Eier','Milch & Eier',19],['brot','Brot','Brot & Backwaren',18],['butter','Butter','Milch & Eier',17],
+  ['baenen','Bananen','Obst & Gemüse',16],['aepfel','Äpfel','Obst & Gemüse',15],['tomaten','Tomaten','Obst & Gemüse',14],['gurke','Gurke','Obst & Gemüse',13],
+  ['kartoffeln','Kartoffeln','Obst & Gemüse',12],['zwiebeln','Zwiebeln','Obst & Gemüse',11],['kaese','Käse','Milch & Eier',10],['joghurt','Joghurt','Milch & Eier',9],
+  ['nudeln','Nudeln','Vorrat',8],['reis','Reis','Vorrat',7],['kaffee','Kaffee','Getränke',6],['wasser','Mineralwasser','Getränke',5],
+  ['haehnchen','Hähnchen','Fleisch & Fisch',4],['wurst','Wurst','Fleisch & Fisch',3],['klopapier','Toilettenpapier','Haushalt & Drogerie',2],['spuelmittel','Spülmittel','Haushalt & Drogerie',1],
+  ['paprika','Paprika','Obst & Gemüse',0],['karotten','Karotten','Obst & Gemüse',0],['salat','Salat','Obst & Gemüse',0],['zitrone','Zitronen','Obst & Gemüse',0],['trauben','Weintrauben','Obst & Gemüse',0],
+  ['sahne','Sahne','Milch & Eier',0],['quark','Quark','Milch & Eier',0],['broetchen','Brötchen','Brot & Backwaren',0],['toast','Toastbrot','Brot & Backwaren',0],
+  ['hack','Hackfleisch','Fleisch & Fisch',0],['lachs','Lachs','Fleisch & Fisch',0],['tkpizza','Tiefkühlpizza','Tiefkühl',0],['tkgemuese','Tiefkühlgemüse','Tiefkühl',0],['eis','Eis','Tiefkühl',0],
+  ['mehl','Mehl','Vorrat',0],['zucker','Zucker','Vorrat',0],['oel','Öl','Vorrat',0],['muesli','Müsli','Vorrat',0],
+  ['saft','Saft','Getränke',0],['bier','Bier','Getränke',0],['tee','Tee','Getränke',0],
+  ['schoko','Schokolade','Süßes & Snacks',0],['chips','Chips','Süßes & Snacks',0],['kekse','Kekse','Süßes & Snacks',0],
+  ['zahnpasta','Zahnpasta','Haushalt & Drogerie',0],['duschgel','Duschgel','Haushalt & Drogerie',0],['muellbeutel','Müllbeutel','Haushalt & Drogerie',0]
+];
+
+const $ = (id) => document.getElementById(id);
+const CHECK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.2 3L13 4.5"/></svg>';
+
+let items = [], trashed = [], products = [], itemByPid = {};
+let ready = {items: false, products: false};
+let view = 'zettel', queryText = '', editMode = false, openCats = {};
+let sel = null, selQty = 1, askYes = null, toastTimer = null;
+let fdb = null, auth = null, unsubs = [], seeding = false, userEmail = '';
+
+function el(tag, cls, text){ const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+function setStatus(t){ $('status').textContent = t || ''; }
+function toast(t){ const T = $('toast'); T.textContent = t; T.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { T.hidden = true; }, 2200); }
+
+/* Schreiben: Änderungen erscheinen sofort lokal und werden ans Netz gesendet, sobald eine Verbindung besteht.
+   Darum wird nicht auf die Antwort des Servers gewartet. */
+function write(fn){
+  try { fn().catch(onWriteError); } catch (e) { onWriteError(e); }
+  return Promise.resolve(true);
+}
+function onWriteError(e){
+  if (e && e.code === 'permission-denied') setStatus('Keine Berechtigung. Melde dich ab und mit dem richtigen Konto wieder an.');
+  else setStatus('Das hat nicht geklappt. Versuch es gleich noch einmal.');
+}
+const D = (path) => doc(fdb, path);
+
+/* ---------- Fragen ---------- */
+function ask(title, text, yesLabel, onYes){
+  $('asktitle').textContent = title; $('asktext').textContent = text; $('askyes').textContent = yesLabel;
+  askYes = onYes; $('askwrap').hidden = false; $('askno').focus();
+}
+function closeAsk(){ $('askwrap').hidden = true; askYes = null; }
+$('askno').addEventListener('click', closeAsk);
+$('askwrap').addEventListener('click', (ev) => { if (ev.target === $('askwrap')) closeAsk(); });
+$('askyes').addEventListener('click', () => { const f = askYes; closeAsk(); if (f) f(); });
+document.addEventListener('keydown', (ev) => {
+  if (ev.key !== 'Escape') return;
+  if (!$('askwrap').hidden) closeAsk(); else if (!$('sheetwrap').hidden) closeSheet();
+});
+
+function confirmTrash(list){
+  const one = list.length === 1;
+  ask(one ? '„' + list[0].text + '“ löschen?' : list.length + ' Artikel löschen?',
+    'Du findest ' + (one ? 'ihn' : 'sie') + ' danach oben rechts unter „Gelöscht“ und kannst ' + (one ? 'ihn' : 'sie') + ' dort zurückholen.',
+    'Ja, löschen', () => {
+      const now = Date.now();
+      list.forEach((i) => write(() => updateDoc(D('items/' + i.id), {deleted: true, deletedAt: now})));
+      toast(one ? '„' + list[0].text + '“ gelöscht' : list.length + ' Artikel gelöscht');
+    });
+}
+
+/* ---------- Zettel ---------- */
+function itemRow(it){
+  const li = el('li', it.done ? 'done' : '');
+  const chk = el('button', 'chk'); chk.type = 'button'; chk.innerHTML = CHECK;
+  chk.setAttribute('aria-label', it.done ? 'Wieder offen setzen' : 'Als erledigt markieren');
+  const lab = el('button', 'label'); lab.type = 'button';
+  const main = el('span');
+  if (it.qty > 1) main.appendChild(el('span', 'qty', it.qty + '× '));
+  main.appendChild(document.createTextNode(it.text));
+  lab.appendChild(main);
+  if (it.note) lab.appendChild(el('small', '', it.note));
+  const del = el('button', 'del', '×'); del.type = 'button'; del.setAttribute('aria-label', it.text + ' löschen');
+  const toggle = () => write(() => updateDoc(D('items/' + it.id), {done: !it.done}));
+  chk.addEventListener('click', toggle); lab.addEventListener('click', toggle);
+  del.addEventListener('click', () => confirmTrash([it]));
+  li.append(chk, lab, del);
+  return li;
+}
+
+function renderZettel(root){
+  const f = el('form', 'row'); f.autocomplete = 'off';
+  const inp = el('input'); inp.type = 'text'; inp.id = 'neu'; inp.maxLength = 80; inp.placeholder = 'Etwas anderes? Hier tippen'; inp.setAttribute('aria-label', 'Neuer Artikel');
+  const b = el('button', 'primary', 'Hinzufügen'); b.type = 'submit';
+  f.append(inp, b);
+  f.addEventListener('submit', (ev) => {
+    ev.preventDefault(); const t = inp.value.trim(); if (!t) return; inp.value = '';
+    write(() => addDoc(collection(fdb, 'items'), {text: t, qty: 1, note: '', done: false, ts: Date.now()}));
+    inp.focus();
+  });
+  root.appendChild(f);
+
+  const open = items.filter((i) => !i.done);
+  const done = items.filter((i) => i.done);
+  if (!items.length){
+    const n = el('div', 'note'); n.appendChild(el('b', '', 'Der Zettel ist leer'));
+    n.appendChild(document.createTextNode('Wechsle unten zu „Artikel“ und tippe einen Artikel an. Er erscheint sofort auf allen Handys, die diese Seite offen haben.'));
+    root.appendChild(n); return;
+  }
+  if (open.length){ const ul = el('ul'); open.forEach((i) => ul.appendChild(itemRow(i))); root.appendChild(ul); }
+  if (done.length){
+    const head = el('div', 'sectionhead'); head.appendChild(el('span', '', 'Erledigt (' + done.length + ')'));
+    const c = el('button', 'link', 'Erledigte entfernen'); c.type = 'button';
+    c.addEventListener('click', () => confirmTrash(done));
+    head.appendChild(c);
+    root.appendChild(head);
+    const ul2 = el('ul'); done.forEach((i) => ul2.appendChild(itemRow(i))); root.appendChild(ul2);
+  }
+}
+
+/* ---------- Gelöscht ---------- */
+function renderTrash(root){
+  if (!trashed.length){
+    const n = el('div', 'note'); n.appendChild(el('b', '', 'Nichts gelöscht'));
+    n.appendChild(document.createTextNode('Gelöschte Artikel erscheinen hier und lassen sich zurückholen.'));
+    root.appendChild(n);
+  } else {
+    const list = trashed.slice().sort((a, b) => b.deletedAt - a.deletedAt);
+    const head = el('div', 'sectionhead'); head.appendChild(el('span', '', list.length + ' Artikel'));
+    const all = el('button', 'link danger', 'Alle endgültig löschen'); all.type = 'button';
+    all.addEventListener('click', () => {
+      ask('Alle ' + list.length + ' endgültig löschen?', 'Das lässt sich nicht rückgängig machen.', 'Ja, endgültig', () => {
+        list.forEach((i) => write(() => deleteDoc(D('items/' + i.id))));
+      });
+    });
+    head.appendChild(all); root.appendChild(head);
+    const ul = el('ul');
+    list.forEach((it) => {
+      const li = el('li');
+      const t = el('div', 'trashtext'); const m = el('span');
+      if (it.qty > 1) m.appendChild(el('span', 'qty', it.qty + '× '));
+      m.appendChild(document.createTextNode(it.text)); t.appendChild(m);
+      if (it.note) t.appendChild(el('small', '', it.note));
+      li.appendChild(t);
+      const acts = el('div', 'acts');
+      const back = el('button', 'link', 'Zurückholen'); back.type = 'button';
+      back.addEventListener('click', () => {
+        write(() => updateDoc(D('items/' + it.id), {deleted: false}));
+        toast('„' + it.text + '“ ist wieder auf dem Zettel');
+      });
+      const gone = el('button', 'link danger', 'Endgültig löschen'); gone.type = 'button';
+      gone.addEventListener('click', () => {
+        ask('„' + it.text + '“ endgültig löschen?', 'Das lässt sich nicht rückgängig machen.', 'Ja, endgültig', () => {
+          write(() => deleteDoc(D('items/' + it.id)));
+        });
+      });
+      acts.append(back, gone); li.appendChild(acts);
+      ul.appendChild(li);
+    });
+    root.appendChild(ul);
+  }
+  const out = el('button', 'bigbtn', 'Abmelden' + (userEmail ? ' (' + userEmail + ')' : '')); out.type = 'button';
+  out.addEventListener('click', () => {
+    ask('Abmelden?', 'Danach musst du dich auf diesem Handy neu anmelden.', 'Ja, abmelden', () => { signOut(auth); });
+  });
+  root.appendChild(out);
+}
+
+/* ---------- Artikel ---------- */
+function chip(p){
+  const ex = itemByPid[p.id]; const onList = ex && !ex.done;
+  const b = el('button', 'chip' + (onList ? ' on' : '')); b.type = 'button';
+  b.appendChild(el('span', '', p.name));
+  if (onList){
+    const bd = el('span', 'badge'); bd.innerHTML = CHECK; bd.appendChild(document.createTextNode(ex.qty > 1 ? ex.qty + '×' : 'auf dem Zettel'));
+    b.appendChild(bd);
+    b.setAttribute('aria-label', p.name + ', schon ' + ex.qty + ' auf dem Zettel');
+  }
+  if (editMode){
+    const x = el('button', 'x', '×'); x.type = 'button'; x.setAttribute('aria-label', p.name + ' als Button entfernen');
+    x.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      ask('Button „' + p.name + '“ entfernen?', 'Der Artikel verschwindet aus der Auswahl. Das lässt sich nicht rückgängig machen.', 'Ja, entfernen', () => {
+        write(() => deleteDoc(D('products/' + p.id)));
+      });
+    });
+    b.appendChild(x);
+  }
+  b.addEventListener('click', () => { if (!editMode) openSheet(p); });
+  return b;
+}
+
+const byName = (a, b) => a.name.localeCompare(b.name, 'de');
+
+function renderArtikel(root){
+  const s = el('input'); s.type = 'text'; s.id = 'suche'; s.placeholder = 'Artikel suchen'; s.value = queryText; s.setAttribute('aria-label', 'Artikel suchen');
+  s.addEventListener('input', () => {
+    queryText = s.value; const pos = s.selectionStart; render();
+    const n = $('suche'); n.focus(); n.setSelectionRange(pos, pos);
+  });
+  root.appendChild(s);
+  const q = queryText.trim().toLowerCase();
+
+  if (q){
+    const hits = products.filter((p) => p.name.toLowerCase().indexOf(q) >= 0).sort(byName);
+    const blk = el('div', 'block');
+    blk.appendChild(el('h2', '', hits.length ? 'Treffer' : 'Kein Artikel gefunden'));
+    const ch = el('div', 'chips'); hits.forEach((p) => ch.appendChild(chip(p))); blk.appendChild(ch);
+    root.appendChild(blk);
+  } else {
+    const top = products.filter((p) => (p.uses || 0) > 0)
+      .sort((a, b) => (b.uses || 0) - (a.uses || 0) || byName(a, b)).slice(0, 20);
+    if (top.length){
+      const tb = el('div', 'block');
+      const th = el('div', 'blockhead'); th.appendChild(el('h2', '', 'Häufig gekauft')); th.appendChild(el('small', '', 'Top ' + top.length)); tb.appendChild(th);
+      const tc = el('div', 'chips'); top.forEach((p) => tc.appendChild(chip(p))); tb.appendChild(tc);
+      root.appendChild(tb);
+    }
+    CATS.forEach((cat) => {
+      const list = products.filter((p) => p.cat === cat).sort(byName);
+      if (!list.length && !editMode) return;
+      const d = el('details', 'cat'); if (openCats[cat]) d.open = true;
+      d.addEventListener('toggle', () => { openCats[cat] = d.open; });
+      const sm = el('summary'); sm.appendChild(el('span', '', cat));
+      const onCount = list.filter((p) => { const e = itemByPid[p.id]; return e && !e.done; }).length;
+      const meta = el('span', 'meta');
+      if (onCount){ meta.appendChild(el('b', '', onCount + ' auf dem Zettel')); meta.appendChild(document.createTextNode(' · ')); }
+      meta.appendChild(document.createTextNode(String(list.length)));
+      sm.appendChild(meta); d.appendChild(sm);
+      const cc = el('div', 'chips'); list.forEach((p) => cc.appendChild(chip(p))); d.appendChild(cc);
+      root.appendChild(d);
+    });
+  }
+
+  const tg = el('button', 'bigbtn', editMode ? 'Fertig' : 'Artikel anlegen'); tg.type = 'button'; tg.id = 'togglenew';
+  tg.addEventListener('click', () => {
+    editMode = !editMode; render();
+    if (editMode){ const b2 = $('togglenew'); if (b2) b2.scrollIntoView({block: 'start'}); }
+  });
+  root.appendChild(tg);
+  if (editMode){
+    const f = el('form', 'addform'); f.autocomplete = 'off';
+    f.appendChild(el('h2', '', 'Neuen Artikel anlegen'));
+    const ni = el('input'); ni.type = 'text'; ni.id = 'pname'; ni.maxLength = 40; ni.placeholder = 'Name, z. B. Hafermilch'; ni.setAttribute('aria-label', 'Name des Artikels');
+    const cs = el('select'); cs.id = 'pcat'; cs.setAttribute('aria-label', 'Kategorie');
+    CATS.forEach((c) => { const o = el('option', '', c); o.value = c; cs.appendChild(o); });
+    const sb = el('button', 'primary', 'Artikel anlegen'); sb.type = 'submit';
+    f.append(ni, cs, sb);
+    f.addEventListener('submit', (ev) => {
+      ev.preventDefault(); const name = ni.value.trim(); if (!name) return;
+      write(() => addDoc(collection(fdb, 'products'), {name, cat: cs.value, uses: 0}));
+      ni.value = ''; openCats[cs.value] = true; toast('„' + name + '“ angelegt'); render();
+    });
+    root.appendChild(f);
+  }
+}
+
+/* ---------- Mengenblatt ---------- */
+function openSheet(p){
+  sel = p; selQty = 1;
+  $('sheettitle').textContent = p.name;
+  $('qtyout').textContent = '1';
+  $('notein').value = '';
+  const ex = itemByPid[p.id], a = $('already');
+  if (ex && !ex.done){ a.hidden = false; a.textContent = 'Schon auf dem Zettel: ' + ex.qty + '×. Die neue Menge wird dazugerechnet.'; }
+  else a.hidden = true;
+  $('sheetwrap').hidden = false;
+  $('plus').focus();
+}
+function closeSheet(){ $('sheetwrap').hidden = true; sel = null; }
+$('plus').addEventListener('click', () => { selQty = Math.min(99, selQty + 1); $('qtyout').textContent = selQty; });
+$('minus').addEventListener('click', () => { selQty = Math.max(1, selQty - 1); $('qtyout').textContent = selQty; });
+$('cancel').addEventListener('click', closeSheet);
+$('sheetwrap').addEventListener('click', (ev) => { if (ev.target === $('sheetwrap')) closeSheet(); });
+$('confirm').addEventListener('click', () => {
+  const p = sel; if (!p) return;
+  const note = $('notein').value.trim(), qty = selQty;
+  const ex = itemByPid[p.id];
+  let data;
+  if (ex && !ex.done) data = {text: p.name, pid: p.id, qty: ex.qty + qty, note: note || ex.note || '', done: false, ts: ex.ts};
+  else data = {text: p.name, pid: p.id, qty, note, done: false, ts: Date.now()};
+  closeSheet();
+  write(() => setDoc(D('items/p_' + p.id), data));
+  write(() => updateDoc(D('products/' + p.id), {uses: (p.uses || 0) + 1}));
+  toast(data.qty + '× ' + p.name + ' auf dem Zettel');
+});
+
+/* ---------- Rahmen ---------- */
+function render(){
+  const openN = items.filter((i) => !i.done).length;
+  $('tabZettel').textContent = 'Zettel' + (openN ? ' (' + openN + ')' : '');
+  $('tabZettel').setAttribute('aria-current', view === 'zettel' ? 'page' : 'false');
+  $('tabArtikel').setAttribute('aria-current', view === 'artikel' ? 'page' : 'false');
+  $('title').textContent = view === 'zettel' ? 'Einkaufszettel' : (view === 'artikel' ? 'Artikel' : 'Gelöscht');
+  $('count').textContent = (view === 'zettel' && items.length) ? openN + ' offen' : '';
+  const tb = $('trashbtn');
+  tb.textContent = '';
+  if (view === 'trash') tb.textContent = 'Zurück';
+  else { tb.appendChild(document.createTextNode('Gelöscht')); if (trashed.length){ tb.appendChild(document.createTextNode(' ')); tb.appendChild(el('b', '', String(trashed.length))); } }
+  const keepY = window.scrollY;
+  const V = $('view');
+  V.textContent = '';
+  if (!ready.items || !ready.products){ setStatus('Lade Liste …'); return; }
+  setStatus('');
+  if (view === 'zettel') renderZettel(V); else if (view === 'artikel') renderArtikel(V); else renderTrash(V);
+  window.scrollTo(0, keepY);
+}
+function go(v){ view = v; if (v !== 'artikel') editMode = false; render(); window.scrollTo(0, 0); }
+$('tabZettel').addEventListener('click', () => go('zettel'));
+$('tabArtikel').addEventListener('click', () => go('artikel'));
+$('trashbtn').addEventListener('click', () => go(view === 'trash' ? 'zettel' : 'trash'));
+
+/* ---------- Daten laden ---------- */
+async function seedIfEmpty(){
+  if (seeding) return; seeding = true;
+  try {
+    const meta = await getDoc(D('meta/init'));
+    if (meta.exists()) return;
+    const batch = writeBatch(fdb);
+    SEED.forEach((s) => batch.set(D('products/' + s[0]), {name: s[1], cat: s[2], uses: s[3]}));
+    batch.set(D('meta/init'), {seededAt: Date.now()});
+    await batch.commit();
+  } catch (e) { /* beim nächsten Start erneut versuchen */ } finally { seeding = false; }
+}
+
+function startData(){
+  const fail = (e) => {
+    ready.items = ready.products = true;
+    if (e && e.code === 'permission-denied') setStatus('Dieses Konto hat keinen Zugriff. Melde dich ab und mit dem richtigen Konto an.');
+    else setStatus('Die Verbindung wurde getrennt. Lade die Seite neu.');
+    render();
+  };
+  unsubs.push(onSnapshot(query(collection(fdb, 'items'), orderBy('ts', 'asc')), (snap) => {
+    const all = snap.docs.map((d) => { const x = d.data() || {};
+      return {id: d.id, text: String(x.text || ''), qty: Math.max(1, +x.qty || 1), note: String(x.note || ''), done: !!x.done, ts: x.ts || 0,
+        pid: x.pid || null, deleted: !!x.deleted, deletedAt: x.deletedAt || 0}; });
+    items = all.filter((i) => !i.deleted);
+    trashed = all.filter((i) => i.deleted);
+    itemByPid = {}; items.forEach((i) => { if (i.pid) itemByPid[i.pid] = i; });
+    ready.items = true; render();
+  }, fail));
+  unsubs.push(onSnapshot(collection(fdb, 'products'), (snap) => {
+    products = snap.docs.map((d) => { const x = d.data() || {};
+      return {id: d.id, name: String(x.name || ''), cat: CATS.indexOf(x.cat) >= 0 ? x.cat : 'Sonstiges', uses: +x.uses || 0}; })
+      .filter((p) => p.name);
+    ready.products = true;
+    if (snap.empty && !snap.metadata.fromCache) seedIfEmpty();
+    render();
+  }, fail));
+}
+function stopData(){
+  unsubs.forEach((u) => u()); unsubs = [];
+  items = []; trashed = []; products = []; itemByPid = {}; ready = {items: false, products: false};
+  editMode = false; view = 'zettel'; queryText = '';
+}
+
+/* ---------- Anmeldung ---------- */
+function showLogin(msg){
+  $('app').hidden = true; $('nav').hidden = true; $('login').hidden = false;
+  $('loginerr').textContent = msg || '';
+}
+function loginErrorText(e){
+  const c = e && e.code;
+  if (c === 'auth/network-request-failed') return 'Keine Verbindung. Prüfe dein Internet und versuche es noch einmal.';
+  if (c === 'auth/too-many-requests') return 'Zu viele Versuche. Warte kurz und versuche es dann noch einmal.';
+  if (c === 'auth/invalid-email') return 'Die E-Mail-Adresse sieht nicht richtig aus.';
+  return 'E-Mail-Adresse oder Passwort stimmt nicht.';
+}
+
+function boot(){
+  if (!firebaseConfig.apiKey || firebaseConfig.apiKey.indexOf('HIER') === 0){
+    showLogin('Die App ist noch nicht mit Firebase verbunden. Trage die Werte in config.js ein.');
+    $('loginform').querySelectorAll('input,button').forEach((n) => { n.disabled = true; });
+    return;
+  }
+  const fapp = initializeApp(firebaseConfig);
+  auth = getAuth(fapp);
+  fdb = initializeFirestore(fapp, {localCache: persistentLocalCache({tabManager: persistentMultipleTabManager()})});
+
+  $('loginform').addEventListener('submit', async (ev) => {
+    ev.preventDefault();
+    $('loginerr').textContent = ''; $('loginbtn').disabled = true;
+    try { await signInWithEmailAndPassword(auth, $('email').value.trim(), $('password').value); }
+    catch (e) { $('loginerr').textContent = loginErrorText(e); }
+    $('loginbtn').disabled = false;
+  });
+
+  onAuthStateChanged(auth, (user) => {
+    if (user){
+      userEmail = user.email || '';
+      $('login').hidden = true; $('app').hidden = false; $('nav').hidden = false;
+      $('password').value = '';
+      stopData(); render(); startData();
+    } else {
+      stopData(); userEmail = '';
+      showLogin('');
+    }
+  });
+}
+boot();
+
+if ('serviceWorker' in navigator){
+  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+}
+
+</script>
+</body>
+</html>
