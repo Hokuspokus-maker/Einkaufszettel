@@ -11,6 +11,7 @@
 <meta name="theme-color" content="#eef3f1">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Figtree:wght@400;500;600&display=swap">
+<script>try{var t=localStorage.getItem('theme');if(t)document.documentElement.setAttribute('data-theme',t)}catch(e){}</script>
 <style>
 /* Layout: schmale Spalte, Ansichten Zettel / Artikel / Gelöscht, feste Leiste unten, Mengenwahl als Blatt von unten */
 :root{
@@ -21,11 +22,16 @@
   --font-body:"Figtree","Segoe UI",system-ui,sans-serif;
 }
 @media (prefers-color-scheme: dark){
-  :root{
+  :root:not([data-theme=light]){
     color-scheme:dark;
     --bg:#0f1a17; --surface:#172622; --fg:#e6f0ec; --muted:#8fa69e;
     --line:#263934; --accent:#4fc19a; --accent-fg:#0b1a15; --accent-soft:#1d3a31; --done:#5f746d; --danger:#e58a78;
   }
+}
+:root[data-theme=dark]{
+  color-scheme:dark;
+  --bg:#0f1a17; --surface:#172622; --fg:#e6f0ec; --muted:#8fa69e;
+  --line:#263934; --accent:#4fc19a; --accent-fg:#0b1a15; --accent-soft:#1d3a31; --done:#5f746d; --danger:#e58a78;
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -70,7 +76,8 @@ textarea{min-height:140px;resize:vertical}
 .searchwrap{position:relative;display:flex;flex-direction:column}
 .searchwrap input{padding-right:48px}
 .clearx{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:40px;height:40px;border:0;background:none;color:var(--muted);font-size:1.5rem;line-height:1}
-.sheetcat{margin-top:-8px;color:var(--muted);font-size:.95rem}
+.sheetname{font-family:var(--font-display);font-size:1.25rem;font-weight:700}
+.sheetcatsel{color:var(--muted)}
 .favbtn{align-self:flex-start;min-height:44px;font-weight:600}
 .favbtn.fav{color:#b07d00;border-color:#e0a100}
 .hint{margin:0;color:var(--muted);font-size:.9rem}
@@ -111,6 +118,11 @@ ul li .mv{margin:0 4px}
 .cat .meta b{color:var(--accent)}
 .bigbtn{margin-top:24px;scroll-margin-top:16px;width:100%;min-height:50px;padding:12px 14px;background:var(--surface);border:1.5px solid var(--line);border-radius:10px;font-weight:600;color:var(--accent)}
 .addform{display:flex;flex-direction:column;gap:8px;background:var(--surface);border:1px dashed var(--line);border-radius:12px;padding:14px}
+.hleft{display:flex;align-items:center;gap:10px;min-width:0}
+.themebtn{flex:none;width:40px;height:40px;border-radius:50%;border:1.5px solid var(--line);background:var(--surface);color:var(--accent);font-size:1.2rem;line-height:1;padding:0;display:grid;place-items:center}
+.arrow{display:inline-block;margin-left:8px;color:var(--accent);font-size:1.1rem;transition:transform .15s}
+.cat[open] .arrow{transform:rotate(180deg)}
+.catbtn{margin-top:4px}
 .hright{display:flex;align-items:center;gap:12px}
 .hbtn{background:var(--surface);border:1.5px solid var(--line);border-radius:999px;padding:6px 14px;font-size:.9rem;font-weight:600;color:var(--muted);min-height:38px;white-space:nowrap}
 .hbtn b{color:var(--accent);font-variant-numeric:tabular-nums}
@@ -125,7 +137,7 @@ ul li .mv{margin:0 4px}
 #sheet .already{background:var(--accent-soft);border-radius:10px;padding:10px 12px;font-weight:500}
 #ask p{margin:0;color:var(--muted)}
 .stepper{display:flex;align-items:center;justify-content:center;gap:20px}
-.stepper button{width:54px;height:54px;border-radius:50%;border:1.5px solid var(--line);background:var(--bg);font-size:1.6rem;line-height:1}
+.stepper button{width:54px;height:54px;border-radius:50%;border:1.5px solid var(--line);background:var(--bg);padding:0;display:grid;place-items:center;color:var(--fg)}
 .stepper output{min-width:2.5ch;text-align:center;font-family:var(--font-display);font-size:2.4rem;font-variant-numeric:tabular-nums}
 .sheetbtns{display:flex;gap:8px}
 .sheetbtns .primary{flex:1}
@@ -155,7 +167,7 @@ nav button[aria-current=page]{background:var(--accent-soft);color:var(--accent)}
 
 <main id="app" hidden>
   <header>
-    <h1 id="title">Einkaufszettel</h1>
+    <div class="hleft"><button type="button" class="themebtn" id="themebtn" aria-label="Hell/Dunkel">☾</button><h1 id="title">Einkaufszettel</h1></div>
     <div class="hright"><span id="count" aria-live="polite"></span><button type="button" class="hbtn" id="trashbtn">Gelöscht</button></div>
   </header>
   <div id="view"></div>
@@ -189,15 +201,15 @@ nav button[aria-current=page]{background:var(--accent-soft);color:var(--accent)}
 </div>
 
 <div id="sheetwrap" hidden>
-  <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheettitle">
-    <h2 id="sheettitle"></h2>
-    <div id="sheetcat" class="sheetcat"></div>
+  <div id="sheet" role="dialog" aria-modal="true" aria-label="Artikel">
+    <input id="sheetname" class="sheetname" type="text" maxlength="40" aria-label="Name des Artikels (antippen zum Ändern)">
+    <select id="sheetcatsel" class="sheetcatsel" aria-label="Kategorie (antippen zum Ändern)"></select>
     <button type="button" class="ghost favbtn" id="sheetfav"></button>
     <div id="already" class="already" hidden></div>
     <div class="stepper">
-      <button type="button" id="minus" aria-label="Weniger">−</button>
+      <button type="button" id="minus" aria-label="Weniger"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M5 12h14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
       <output id="qtyout" aria-live="polite">1</output>
-      <button type="button" id="plus" aria-label="Mehr">+</button>
+      <button type="button" id="plus" aria-label="Mehr"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M5 12h14M12 5v14" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg></button>
     </div>
     <div class="pricerow"><label for="pricein">Preis in €</label><input id="pricein" type="text" inputmode="decimal" placeholder="z. B. 1,99" aria-label="Preis in Euro"></div>
     <input id="notein" type="text" maxlength="40" placeholder="Hinweis, z. B. 1 l, Bio (optional)" aria-label="Hinweis">
@@ -285,7 +297,7 @@ const CHECK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke
 
 let items = [], trashed = [], products = [], itemByPid = {};
 let ready = {items: false, products: false};
-let view = 'zettel', queryText = '', editMode = false, openCats = {};
+let view = 'zettel', queryText = '', editMode = false, catEdit = false, openCats = {};
 let lastCat = '', prefillName = '', favCustom = false, favSort = false;
 let sel = null, selQty = 1, askYes = null, toastTimer = null;
 let fdb = null, auth = null, unsubs = [], seeding = false, userEmail = '';
@@ -502,7 +514,7 @@ function renderArtikel(root){
     sw.appendChild(cx);
   }
   root.appendChild(sw);
-  if (editMode) root.appendChild(el('p', 'hint', 'Tippe einen Artikel an, um ihn umzubenennen, zu verschieben oder zu löschen. Mit ▲ ▼ ordnest du die Kategorien.'));
+  if (editMode) root.appendChild(el('p', 'hint', 'Tippe einen Artikel an, um ihn umzubenennen, zu verschieben oder zu löschen. Kategorien bearbeitest du mit dem eigenen Button über der ersten Kategorie.'));
   const q = queryText.trim().toLowerCase();
   const qShown = queryText.trim();
   const tg = el('button', 'bigbtn', editMode ? 'Fertig' : (qShown ? 'Neu anlegen: „' + qShown + '“' : 'Artikel anlegen/bearbeiten')); tg.type = 'button'; tg.id = 'togglenew';
@@ -533,19 +545,6 @@ function renderArtikel(root){
       lastCat = cs.value; ni.value = ''; pi.value = ''; setTimeout(() => { const n = $('pname'); if (n) n.focus({preventScroll: true}); }, 80);
     });
     root.appendChild(f);
-
-    const cf = el('form', 'addform'); cf.autocomplete = 'off';
-    cf.appendChild(el('h2', '', 'Neue Kategorie'));
-    const cn = el('input'); cn.type = 'text'; cn.id = 'cname'; cn.maxLength = 30; cn.placeholder = 'Name, z. B. Tierbedarf'; cn.setAttribute('aria-label', 'Name der Kategorie');
-    const cb = el('button', 'primary', 'Kategorie anlegen'); cb.type = 'submit';
-    cf.append(cn, cb);
-    cf.addEventListener('submit', (ev) => {
-      ev.preventDefault(); const name = cn.value.trim(); if (!name) return;
-      if (cats().some((c) => c.toLowerCase() === name.toLowerCase())){ toast('Diese Kategorie gibt es schon'); return; }
-      saveCatOrder(cats().concat([name])); openCats[name] = true;
-      cn.value = ''; toast('Kategorie „' + name + '“ angelegt'); render();
-    });
-    root.appendChild(cf);
   }
   if (q){
     // Zuerst Artikel, die mit den Buchstaben beginnen; dann Artikel mit einem Wort, das so beginnt; nur wenn nichts passt, alles mit diesen Buchstaben irgendwo.
@@ -591,10 +590,27 @@ function renderArtikel(root){
       const fc = el('div', 'chips'); favs.forEach((p) => fc.appendChild(chip(p))); fb.appendChild(fc);
     }
     root.appendChild(fb);
+    const ce = el('button', 'bigbtn catbtn', catEdit ? 'Kategorien: Fertig' : 'Kategorien bearbeiten'); ce.type = 'button';
+    ce.addEventListener('click', () => { catEdit = !catEdit; render(); });
+    root.appendChild(ce);
+    if (catEdit){
+      const cf = el('form', 'addform'); cf.autocomplete = 'off';
+      cf.appendChild(el('h2', '', 'Neue Kategorie'));
+      const cn = el('input'); cn.type = 'text'; cn.id = 'cname'; cn.maxLength = 30; cn.placeholder = 'Name, z. B. Tierbedarf'; cn.setAttribute('aria-label', 'Name der Kategorie');
+      const cb = el('button', 'primary', 'Kategorie anlegen'); cb.type = 'submit';
+      cf.append(cn, cb);
+      cf.addEventListener('submit', (ev) => {
+        ev.preventDefault(); const name = cn.value.trim(); if (!name) return;
+        if (cats().some((c) => c.toLowerCase() === name.toLowerCase())){ toast('Diese Kategorie gibt es schon'); return; }
+        saveCatOrder(cats().concat([name])); openCats[name] = true;
+        cn.value = ''; toast('Kategorie „' + name + '“ angelegt'); render();
+      });
+      root.appendChild(cf);
+    }
     const CL = cats();
     CL.forEach((cat, ci) => {
       const list = products.filter((p) => p.cat === cat).sort(byName);
-      if (!list.length && !editMode) return;
+      if (!list.length && !editMode && !catEdit) return;
       const d = el('details', 'cat'); if (openCats[cat]) d.open = true;
       d.addEventListener('toggle', () => { openCats[cat] = d.open; });
       const sm = el('summary'); sm.appendChild(el('span', '', cat));
@@ -602,8 +618,9 @@ function renderArtikel(root){
       const meta = el('span', 'meta');
       if (onCount){ meta.appendChild(el('b', '', onCount + ' auf dem Zettel')); meta.appendChild(document.createTextNode(' · ')); }
       meta.appendChild(document.createTextNode(String(list.length)));
+      meta.appendChild(el('span', 'arrow', '▾'));
       sm.appendChild(meta);
-      if (editMode){
+      if (catEdit){
         const mv = (dir, label, dis) => {
           const bt = el('button', 'mv', label); bt.type = 'button'; bt.disabled = dis;
           bt.setAttribute('aria-label', cat + (dir < 0 ? ' nach oben' : ' nach unten') + ' verschieben');
@@ -704,8 +721,10 @@ function syncSheetFav(){
 $('sheetfav').addEventListener('click', () => { if (!sel) return; const cur = products.find((x) => x.id === sel.id); if (cur) toggleFav(cur); });
 function openSheet(p){
   sel = p; selQty = 1;
-  $('sheettitle').textContent = p.name;
-  $('sheetcat').textContent = 'Kategorie: ' + p.cat;
+  $('sheetname').value = p.name;
+  const sc = $('sheetcatsel'); sc.textContent = '';
+  cats().forEach((c) => { const o = el('option', '', c); o.value = c; sc.appendChild(o); });
+  sc.value = p.cat;
   syncSheetFav();
   $('qtyout').textContent = '1';
   $('notein').value = '';
@@ -724,18 +743,28 @@ $('sheetwrap').addEventListener('click', (ev) => { if (ev.target === $('sheetwra
 $('confirm').addEventListener('click', () => {
   const p = sel; if (!p) return;
   const note = $('notein').value.trim(), qty = selQty;
+  const nm = $('sheetname').value.trim().slice(0, 40) || p.name, ct = $('sheetcatsel').value || p.cat;
+  if (nm.toLowerCase() !== p.name.toLowerCase() && products.some((o) => o.id !== p.id && o.name.toLowerCase() === nm.toLowerCase())){ toast('Diesen Artikel gibt es schon'); return; }
   const ex = itemByPid[p.id];
   let data;
-  if (ex && !ex.done) data = {text: p.name, pid: p.id, qty: ex.qty + qty, note: note || ex.note || '', done: false, ts: ex.ts};
-  else data = {text: p.name, pid: p.id, qty, note, done: false, ts: Date.now()};
+  if (ex && !ex.done) data = {text: nm, pid: p.id, qty: ex.qty + qty, note: note || ex.note || '', done: false, ts: ex.ts};
+  else data = {text: nm, pid: p.id, qty, note, done: false, ts: Date.now()};
   const pr = $('pricein').value.trim() === '' ? null : parsePrice($('pricein').value);
   const upd = {uses: (p.uses || 0) + 1};
+  if (nm !== p.name) upd.name = nm;
+  if (ct !== p.cat){ upd.cat = ct; lastCat = ct; }
   if (pr !== p.price && ($('pricein').value.trim() === '' || pr != null)) upd.price = pr;
   closeSheet();
   write(() => setDoc(D('items/p_' + p.id), data));
   write(() => updateDoc(D('products/' + p.id), upd));
-  toast(data.qty + '× ' + p.name + ' auf dem Zettel');
+  toast(data.qty + '× ' + nm + ' auf dem Zettel');
 });
+
+/* ---------- Hell / Dunkel ---------- */
+function curTheme(){ const t = document.documentElement.getAttribute('data-theme'); if (t) return t; return window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
+function syncThemeBtn(){ const d = curTheme() === 'dark'; const b = $('themebtn'); b.textContent = d ? '☀' : '☾'; b.setAttribute('aria-label', d ? 'Zum hellen Modus wechseln' : 'Zum dunklen Modus wechseln'); const m = document.querySelector('meta[name=theme-color]'); if (m) m.content = d ? '#0f1a17' : '#eef3f1'; }
+$('themebtn').addEventListener('click', () => { const n = curTheme() === 'dark' ? 'light' : 'dark'; document.documentElement.setAttribute('data-theme', n); try { localStorage.setItem('theme', n); } catch (e) {} syncThemeBtn(); });
+syncThemeBtn();
 
 /* ---------- Rahmen ---------- */
 function render(){
@@ -758,7 +787,7 @@ function render(){
   if (view === 'zettel') renderZettel(V); else if (view === 'artikel') renderArtikel(V); else renderTrash(V);
   window.scrollTo(0, keepY);
 }
-function go(v){ view = v; if (v !== 'artikel'){ editMode = false; favSort = false; } render(); window.scrollTo(0, 0); }
+function go(v){ view = v; if (v !== 'artikel'){ editMode = false; catEdit = false; favSort = false; } render(); window.scrollTo(0, 0); }
 $('tabZettel').addEventListener('click', () => go('zettel'));
 $('tabArtikel').addEventListener('click', () => go('artikel'));
 $('trashbtn').addEventListener('click', () => go(view === 'trash' ? 'zettel' : 'trash'));
@@ -808,7 +837,7 @@ function startData(){
 function stopData(){
   unsubs.forEach((u) => u()); unsubs = [];
   items = []; trashed = []; products = []; itemByPid = {}; ready = {items: false, products: false};
-  editMode = false; view = 'zettel'; queryText = ''; favCustom = false; favSort = false; setCatOrder(null);
+  editMode = false; catEdit = false; view = 'zettel'; queryText = ''; favCustom = false; favSort = false; setCatOrder(null);
 }
 
 /* ---------- Anmeldung ---------- */
