@@ -87,6 +87,10 @@ textarea{min-height:140px;resize:vertical}
 .qty{font-weight:600;font-variant-numeric:tabular-nums;color:var(--accent)}
 li.done .label{color:var(--done);text-decoration:line-through}
 li.done .qty{color:var(--done)}
+.qstep{flex:none;display:flex;align-items:center;gap:2px}
+.qstep button{width:36px;height:36px;border-radius:50%;border:1.5px solid var(--line);background:var(--bg);color:var(--accent);font-size:1.2rem;line-height:1;padding:0;display:grid;place-items:center}
+.qstep button:disabled{opacity:.3}
+.qstep output{min-width:2ch;text-align:center;font-weight:600;font-variant-numeric:tabular-nums}
 .del{flex:none;background:none;border:0;color:var(--muted);width:44px;height:44px;border-radius:8px;font-size:1.3rem;line-height:1}
 .del:hover{color:var(--danger)}
 .sectionhead{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;font-weight:600;margin-top:4px}
@@ -350,7 +354,7 @@ function itemRow(it, pm){
   chk.setAttribute('aria-label', it.done ? 'Wieder offen setzen' : 'Als erledigt markieren');
   const lab = el('button', 'label'); lab.type = 'button';
   const main = el('span');
-  if (it.qty > 1) main.appendChild(el('span', 'qty', it.qty + '× '));
+  if (it.qty > 1 && it.done) main.appendChild(el('span', 'qty', it.qty + '× '));
   main.appendChild(document.createTextNode(it.text));
   lab.appendChild(main);
   if (it.note) lab.appendChild(el('small', '', it.note));
@@ -360,7 +364,15 @@ function itemRow(it, pm){
   const toggle = () => write(() => updateDoc(D('items/' + it.id), {done: !it.done}));
   chk.addEventListener('click', toggle); lab.addEventListener('click', toggle);
   del.addEventListener('click', () => confirmTrash([it]));
-  li.append(chk, lab, del);
+  li.append(chk, lab);
+  if (!it.done){
+    const st = el('div', 'qstep');
+    const q = (d, label, txt, dis) => { const b = el('button', '', txt); b.type = 'button'; b.disabled = dis; b.setAttribute('aria-label', it.text + ' ' + label);
+      b.addEventListener('click', () => write(() => updateDoc(D('items/' + it.id), {qty: Math.max(1, Math.min(99, it.qty + d))}))); return b; };
+    st.append(q(-1, 'weniger', '−', it.qty <= 1), el('output', '', String(it.qty)), q(1, 'mehr', '+', it.qty >= 99));
+    li.appendChild(st);
+  }
+  li.appendChild(del);
   return li;
 }
 
