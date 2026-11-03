@@ -131,15 +131,18 @@ ul li .mv{margin:0 4px}
 .xbtn{flex:none;width:40px;height:40px;border-radius:50%;border:0;background:var(--bg);color:var(--muted);font-size:1.6rem;line-height:1;padding:0;display:grid;place-items:center}
 #sheet,#editbox,#catbox{position:relative}
 .dlgx{position:absolute;top:8px;right:8px}
+.dlgtrash{right:52px;color:var(--danger)}
+#sheet h2,#sheet .sheetname{padding-right:92px}
 #sheet h2,#editbox h2,#catbox h2,#sheet .sheetname{padding-right:44px}
 #sheet{padding-top:28px}
 .zgroups{display:flex;flex-direction:column;gap:14px}
 .zgroup{display:flex;flex-direction:column;gap:6px}
-.zgroup.dragging{opacity:.85;outline:2px solid var(--accent);outline-offset:4px;border-radius:12px;background:var(--bg)}
+.zgroup.dragging{opacity:.8}
+.zhandle:focus,.zhandle:focus-visible{outline:none}
 .zhead{display:flex;align-items:center;gap:6px;padding:0 2px}
 .zname{font-family:var(--font-display);font-weight:700;font-size:1.05rem;flex:1;min-width:0}
 .zhead small{color:var(--muted);font-variant-numeric:tabular-nums}
-.zhandle{flex:none;width:44px;height:40px;border:0;background:none;color:var(--muted);font-size:1.5rem;line-height:1;touch-action:none;padding:0;cursor:grab;user-select:none;-webkit-user-select:none}
+.zhandle{flex:none;width:44px;height:40px;border:0;background:none;color:var(--muted);font-size:1.5rem;line-height:1;touch-action:none;padding:0;cursor:grab;outline:none;user-select:none;-webkit-user-select:none}
 .hleft{display:flex;align-items:center;gap:10px;min-width:0}
 .themebtn{flex:none;width:40px;height:40px;border-radius:50%;border:1.5px solid var(--line);background:var(--surface);color:var(--accent);font-size:1.2rem;line-height:1;padding:0;display:grid;place-items:center}
 .arrow{display:inline-block;margin-left:8px;color:var(--accent);font-size:1.1rem;transition:transform .15s}
@@ -227,6 +230,7 @@ nav button[aria-current=page]{background:var(--accent-soft);color:var(--accent)}
 <div id="sheetwrap" hidden>
   <div id="sheet" role="dialog" aria-modal="true" aria-label="Artikel">
     <button type="button" class="xbtn dlgx" data-close="cancel" aria-label="Schließen">×</button>
+    <button type="button" class="xbtn dlgx dlgtrash" id="sheetdel" aria-label="Artikel löschen"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg></button>
     <input id="sheetname" class="sheetname" type="text" maxlength="40" aria-label="Name des Artikels (antippen zum Ändern)">
     <select id="sheetcatsel" class="sheetcatsel" aria-label="Kategorie (antippen zum Ändern)"></select>
     <button type="button" class="ghost favbtn" id="sheetfav"></button>
@@ -411,7 +415,7 @@ function startDrag(ev, g, zg, hb){
   };
   const end = () => {
     window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end);
-    g.classList.remove('dragging'); dragging = false;
+    g.classList.remove('dragging'); dragging = false; if (document.activeElement) document.activeElement.blur();
     saveZorder(Array.from(zg.children).map((x) => x.dataset.cat));
     dragPending = false; render();
   };
@@ -742,6 +746,15 @@ $('edelete').addEventListener('click', () => {
   const p = editing; if (!p) return;
   closeEdit();
   ask('Button „' + p.name + '“ löschen?', 'Der Artikel verschwindet aus der Auswahl. Das lässt sich nicht rückgängig machen.', 'Ja, löschen', () => {
+    write(() => deleteDoc(D('products/' + p.id)));
+    toast('„' + p.name + '“ gelöscht');
+  });
+});
+
+$('sheetdel').addEventListener('click', () => {
+  const p = sel; if (!p) return;
+  closeSheet();
+  ask('Artikel „' + p.name + '“ löschen?', 'Der Artikel verschwindet aus der Auswahl. Das lässt sich nicht rückgängig machen.', 'Ja, löschen', () => {
     write(() => deleteDoc(D('products/' + p.id)));
     toast('„' + p.name + '“ gelöscht');
   });
