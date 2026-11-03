@@ -121,7 +121,25 @@ ul li .mv{margin:0 4px}
 .cat .chips{padding:0 14px 14px}
 .cat .meta b{color:var(--accent)}
 .bigbtn{margin-top:24px;scroll-margin-top:16px;width:100%;min-height:50px;padding:12px 14px;background:var(--surface);border:1.5px solid var(--line);border-radius:10px;font-weight:600;color:var(--accent)}
+/* Anlegen-Felder: immer der Gegensatz zum gewählten Modus */
+.addform.inv{--bg:#0f1a17; --surface:#172622; --fg:#e6f0ec; --muted:#8fa69e; --line:#263934; --accent:#4fc19a; --accent-fg:#0b1a15; --accent-soft:#1d3a31; --danger:#e58a78; color-scheme:dark;background:var(--surface);color:var(--fg);border:2px solid var(--line)}
+@media (prefers-color-scheme: dark){ :root:not([data-theme=light]) .addform.inv{--bg:#eef3f1; --surface:#ffffff; --fg:#14231f; --muted:#5d716b; --line:#d5e0dc; --accent:#1f7a5c; --accent-fg:#ffffff; --accent-soft:#d9efe6; --danger:#b3412f; color-scheme:light;} }
+:root[data-theme=dark] .addform.inv{--bg:#eef3f1; --surface:#ffffff; --fg:#14231f; --muted:#5d716b; --line:#d5e0dc; --accent:#1f7a5c; --accent-fg:#ffffff; --accent-soft:#d9efe6; --danger:#b3412f; color-scheme:light;}
+:root[data-theme=light] .addform.inv{--bg:#0f1a17; --surface:#172622; --fg:#e6f0ec; --muted:#8fa69e; --line:#263934; --accent:#4fc19a; --accent-fg:#0b1a15; --accent-soft:#1d3a31; --danger:#e58a78; color-scheme:dark;}
 .addform{display:flex;flex-direction:column;gap:8px;background:var(--surface);border:1px dashed var(--line);border-radius:12px;padding:14px}
+.panelhead{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.xbtn{flex:none;width:40px;height:40px;border-radius:50%;border:0;background:var(--bg);color:var(--muted);font-size:1.6rem;line-height:1;padding:0;display:grid;place-items:center}
+#sheet,#editbox,#catbox{position:relative}
+.dlgx{position:absolute;top:8px;right:8px}
+#sheet h2,#editbox h2,#catbox h2,#sheet .sheetname{padding-right:44px}
+#sheet{padding-top:28px}
+.zgroups{display:flex;flex-direction:column;gap:14px}
+.zgroup{display:flex;flex-direction:column;gap:6px}
+.zgroup.dragging{opacity:.85;outline:2px solid var(--accent);outline-offset:4px;border-radius:12px;background:var(--bg)}
+.zhead{display:flex;align-items:center;gap:6px;padding:0 2px}
+.zname{font-family:var(--font-display);font-weight:700;font-size:1.05rem;flex:1;min-width:0}
+.zhead small{color:var(--muted);font-variant-numeric:tabular-nums}
+.zhandle{flex:none;width:44px;height:40px;border:0;background:none;color:var(--muted);font-size:1.5rem;line-height:1;touch-action:none;padding:0;cursor:grab;user-select:none;-webkit-user-select:none}
 .hleft{display:flex;align-items:center;gap:10px;min-width:0}
 .themebtn{flex:none;width:40px;height:40px;border-radius:50%;border:1.5px solid var(--line);background:var(--surface);color:var(--accent);font-size:1.2rem;line-height:1;padding:0;display:grid;place-items:center}
 .arrow{display:inline-block;margin-left:8px;color:var(--accent);font-size:1.1rem;transition:transform .15s}
@@ -180,6 +198,7 @@ nav button[aria-current=page]{background:var(--accent-soft);color:var(--accent)}
 
 <div id="editwrap" hidden>
   <div id="editbox" role="dialog" aria-modal="true" aria-labelledby="edittitle">
+    <button type="button" class="xbtn dlgx" data-close="ecancel" aria-label="Schließen">×</button>
     <h2 id="edittitle">Artikel bearbeiten</h2>
     <input id="ename" type="text" maxlength="40" aria-label="Name">
     <select id="ecat" aria-label="Kategorie"></select>
@@ -194,6 +213,7 @@ nav button[aria-current=page]{background:var(--accent-soft);color:var(--accent)}
 
 <div id="catwrap" hidden>
   <div id="catbox" role="dialog" aria-modal="true" aria-labelledby="cattitle">
+    <button type="button" class="xbtn dlgx" data-close="ccancel" aria-label="Schließen">×</button>
     <h2 id="cattitle">Kategorie bearbeiten</h2>
     <input id="cedname" type="text" maxlength="30" aria-label="Name der Kategorie">
     <div class="sheetbtns">
@@ -206,6 +226,7 @@ nav button[aria-current=page]{background:var(--accent-soft);color:var(--accent)}
 
 <div id="sheetwrap" hidden>
   <div id="sheet" role="dialog" aria-modal="true" aria-label="Artikel">
+    <button type="button" class="xbtn dlgx" data-close="cancel" aria-label="Schließen">×</button>
     <input id="sheetname" class="sheetname" type="text" maxlength="40" aria-label="Name des Artikels (antippen zum Ändern)">
     <select id="sheetcatsel" class="sheetcatsel" aria-label="Kategorie (antippen zum Ändern)"></select>
     <button type="button" class="ghost favbtn" id="sheetfav"></button>
@@ -301,6 +322,7 @@ const CHECK = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke
 
 let items = [], trashed = [], products = [], itemByPid = {};
 let ready = {items: false, products: false};
+let zorder = [], dragging = false, dragPending = false;
 let view = 'zettel', queryText = '', editMode = false, catEdit = false, openCats = {};
 let lastCat = '', prefillName = '', favCustom = false, favSort = false;
 let sel = null, selQty = 1, askYes = null, toastTimer = null;
@@ -376,6 +398,25 @@ function itemRow(it, pm){
   return li;
 }
 
+function itemCat(i, pm){ const p = i.pid && pm[i.pid]; return p ? p.cat : 'Sonstiges'; }
+function saveZorder(a){ zorder = a; write(() => setDoc(D('meta/zorder'), {cats: a})); }
+function startDrag(ev, g, zg, hb){
+  ev.preventDefault(); dragging = true; g.classList.add('dragging');
+  const move = (e) => {
+    const y = e.clientY;
+    if (y < 90) window.scrollBy(0, -12); else if (y > window.innerHeight - 90) window.scrollBy(0, 12);
+    let before = null;
+    for (const o of Array.from(zg.children)){ if (o === g) continue; const r = o.getBoundingClientRect(); if (y < r.top + r.height / 2){ before = o; break; } }
+    if (before !== g.nextSibling) zg.insertBefore(g, before);
+  };
+  const end = () => {
+    window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end);
+    g.classList.remove('dragging'); dragging = false;
+    saveZorder(Array.from(zg.children).map((x) => x.dataset.cat));
+    dragPending = false; render();
+  };
+  window.addEventListener('pointermove', move); window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+}
 function renderZettel(root){
   const open = items.filter((i) => !i.done);
   const done = items.filter((i) => i.done);
@@ -393,7 +434,21 @@ function renderZettel(root){
     l.appendChild(el('small', '', noPrice ? noPrice + (noPrice === 1 ? ' Artikel' : ' Artikel') + ' ohne Preis, nicht mitgerechnet' : 'Nach zuletzt bezahlten Preisen'));
     tot.append(l, el('b', '', fmt(sum)));
     root.appendChild(tot);
-    const ul = el('ul'); open.forEach((i) => ul.appendChild(itemRow(i, pm))); root.appendChild(ul);
+    const gm = {}; open.forEach((i) => { const c = itemCat(i, pm); (gm[c] = gm[c] || []).push(i); });
+    Object.keys(gm).forEach((c) => gm[c].sort((x, y) => x.ts - y.ts));
+    const rest = Object.keys(gm).filter((c) => zorder.indexOf(c) < 0).sort((x, y) => gm[x][0].ts - gm[y][0].ts);
+    const order = zorder.filter((c) => gm[c]).concat(rest);
+    const zg = el('div', 'zgroups');
+    order.forEach((c) => {
+      const g = el('div', 'zgroup'); g.dataset.cat = c;
+      const hd = el('div', 'zhead');
+      const hb = el('button', 'zhandle', '⠿'); hb.type = 'button'; hb.setAttribute('aria-label', c + ' verschieben (gedrückt halten und ziehen)');
+      hb.addEventListener('pointerdown', (ev) => startDrag(ev, g, zg, hb));
+      hd.append(hb, el('span', 'zname', c), el('small', '', String(gm[c].length)));
+      const ul = el('ul'); gm[c].forEach((i) => ul.appendChild(itemRow(i, pm)));
+      g.append(hd, ul); zg.appendChild(g);
+    });
+    root.appendChild(zg);
   }
   if (done.length){
     const head = el('div', 'sectionhead'); head.appendChild(el('span', '', 'Erledigt (' + done.length + ')'));
@@ -513,6 +568,11 @@ function moveCat(i, dir){
 }
 const byName = (a, b) => a.name.localeCompare(b.name, 'de');
 
+function panelHead(title, onClose){
+  const d = el('div', 'panelhead'); d.appendChild(el('h2', '', title));
+  const x = el('button', 'xbtn', '×'); x.type = 'button'; x.setAttribute('aria-label', 'Schließen'); x.addEventListener('click', onClose);
+  d.appendChild(x); return d;
+}
 function renderArtikel(root){
   const s = el('input'); s.type = 'text'; s.id = 'suche'; s.placeholder = 'Artikel suchen'; s.value = queryText; s.setAttribute('aria-label', 'Artikel suchen');
   s.addEventListener('input', () => {
@@ -535,10 +595,10 @@ function renderArtikel(root){
     editMode = !editMode; render();
     if (editMode){ const b2 = $('togglenew'); if (b2) b2.scrollIntoView({block: 'start'}); }
   });
-  root.appendChild(tg);
+  if (!editMode) root.appendChild(tg);
   if (editMode){
-    const f = el('form', 'addform'); f.autocomplete = 'off';
-    f.appendChild(el('h2', '', 'Neuen Artikel anlegen'));
+    const f = el('form', 'addform inv'); f.autocomplete = 'off';
+    f.appendChild(panelHead('Neuen Artikel anlegen', () => { editMode = false; render(); }));
     const ni = el('input'); ni.type = 'text'; ni.id = 'pname'; ni.maxLength = 40; ni.placeholder = 'Name, z. B. Hafermilch'; ni.setAttribute('aria-label', 'Name des Artikels');
     const cs = el('select'); cs.id = 'pcat'; cs.setAttribute('aria-label', 'Kategorie');
     cats().forEach((c) => { const o = el('option', '', c); o.value = c; cs.appendChild(o); });
@@ -602,12 +662,12 @@ function renderArtikel(root){
       const fc = el('div', 'chips'); favs.forEach((p) => fc.appendChild(chip(p))); fb.appendChild(fc);
     }
     root.appendChild(fb);
-    const ce = el('button', 'bigbtn catbtn', catEdit ? 'Kategorien: Fertig' : 'Kategorien bearbeiten'); ce.type = 'button';
-    ce.addEventListener('click', () => { catEdit = !catEdit; render(); });
-    root.appendChild(ce);
+    if (!catEdit){ const ce = el('button', 'bigbtn catbtn', 'Kategorien bearbeiten'); ce.type = 'button';
+      ce.addEventListener('click', () => { catEdit = true; render(); });
+      root.appendChild(ce); }
     if (catEdit){
-      const cf = el('form', 'addform'); cf.autocomplete = 'off';
-      cf.appendChild(el('h2', '', 'Neue Kategorie'));
+      const cf = el('form', 'addform inv'); cf.autocomplete = 'off';
+      cf.appendChild(panelHead('Neue Kategorie', () => { catEdit = false; render(); }));
       const cn = el('input'); cn.type = 'text'; cn.id = 'cname'; cn.maxLength = 30; cn.placeholder = 'Name, z. B. Tierbedarf'; cn.setAttribute('aria-label', 'Name der Kategorie');
       const cb = el('button', 'primary', 'Kategorie anlegen'); cb.type = 'submit';
       cf.append(cn, cb);
@@ -766,11 +826,18 @@ $('confirm').addEventListener('click', () => {
   if (nm !== p.name) upd.name = nm;
   if (ct !== p.cat){ upd.cat = ct; lastCat = ct; }
   if (pr !== p.price && ($('pricein').value.trim() === '' || pr != null)) upd.price = pr;
+  {
+    const pmx = prodById(); const catOf = (i) => i.id === 'p_' + p.id ? ct : itemCat(i, pmx);
+    const present = {}; items.filter((i) => !i.done && i.id !== 'p_' + p.id).forEach((i) => { present[catOf(i)] = true; });
+    if (!present[ct]) saveZorder(zorder.filter((c) => present[c]).concat([ct]));
+  }
   closeSheet();
   write(() => setDoc(D('items/p_' + p.id), data));
   write(() => updateDoc(D('products/' + p.id), upd));
   toast(data.qty + '× ' + nm + ' auf dem Zettel');
 });
+
+document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => $(b.dataset.close).click()));
 
 /* ---------- Hell / Dunkel ---------- */
 function curTheme(){ const t = document.documentElement.getAttribute('data-theme'); if (t) return t; return window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'; }
@@ -780,6 +847,7 @@ syncThemeBtn();
 
 /* ---------- Rahmen ---------- */
 function render(){
+  if (dragging){ dragPending = true; return; }
   syncSheetFav();
   const openN = items.filter((i) => !i.done).length;
   $('tabZettel').textContent = 'Zettel' + (openN ? ' (' + openN + ')' : '');
@@ -834,6 +902,7 @@ function startData(){
     ready.items = true; render();
   }, fail));
   unsubs.push(onSnapshot(D('meta/favs'), (snap) => { favCustom = !!(snap.exists() && (snap.data() || {}).custom); render(); }, () => {}));
+  unsubs.push(onSnapshot(D('meta/zorder'), (snap) => { zorder = snap.exists() && Array.isArray((snap.data() || {}).cats) ? snap.data().cats : []; render(); }, () => {}));
   unsubs.push(onSnapshot(D('meta/order'), (snap) => {
     setCatOrder(snap.exists() ? (snap.data() || {}).cats : null); render();
   }, () => {}));
@@ -849,7 +918,7 @@ function startData(){
 function stopData(){
   unsubs.forEach((u) => u()); unsubs = [];
   items = []; trashed = []; products = []; itemByPid = {}; ready = {items: false, products: false};
-  editMode = false; catEdit = false; view = 'zettel'; queryText = ''; favCustom = false; favSort = false; setCatOrder(null);
+  editMode = false; catEdit = false; view = 'zettel'; queryText = ''; favCustom = false; favSort = false; zorder = []; setCatOrder(null);
 }
 
 /* ---------- Anmeldung ---------- */
