@@ -407,20 +407,48 @@ function itemCat(i, pm){ const p = i.pid && pm[i.pid]; return p ? p.cat : 'Sonst
 function saveZorder(a){ zorder = a; write(() => setDoc(D('meta/zorder'), {cats: a})); }
 function startDrag(ev, g, zg, hb){
   ev.preventDefault(); dragging = true; g.classList.add('dragging');
+  const sibs = Array.from(zg.children);
+  const from = sibs.indexOf(g);
+  const startY = ev.clientY, startS = window.scrollY;
+  const gh = g.getBoundingClientRect().height + 10;
+  const tops = sibs.map((o) => o.getBoundingClientRect().top + window.scrollY);
+  const mids = sibs.map((o) => tops[sibs.indexOf(o)] + o.getBoundingClientRect().height / 2);
+  let lastY = startY, to = from;
+  g.style.position = 'relative'; g.style.zIndex = '5'; g.style.transition = 'none';
+  const apply = () => {
+    const dy = lastY - startY + (window.scrollY - startS);
+    g.style.transform = 'translateY(' + dy + 'px)';
+    const cy = mids[from] + dy;
+    to = from;
+    for (let k = 0; k < sibs.length; k++){ if (k === from) continue; if (k < from && cy < mids[k]) { to = k; break; } if (k > from && cy > mids[k]) to = k; }
+    sibs.forEach((o, k) => {
+      if (k === from) return;
+      let s = 0;
+      if (from < to && k > from && k <= to) s = -gh;
+      if (from > to && k < from && k >= to) s = gh;
+      o.style.transition = 'transform .15s'; o.style.transform = s ? 'translateY(' + s + 'px)' : '';
+    });
+  };
+  const tm = (e) => { e.preventDefault(); };
   const move = (e) => {
-    const y = e.clientY;
-    if (y < 90) window.scrollBy(0, -12); else if (y > window.innerHeight - 90) window.scrollBy(0, 12);
-    let before = null;
-    for (const o of Array.from(zg.children)){ if (o === g) continue; const r = o.getBoundingClientRect(); if (y < r.top + r.height / 2){ before = o; break; } }
-    if (before !== g.nextSibling) zg.insertBefore(g, before);
+    lastY = e.clientY;
+    if (lastY < 90) window.scrollBy(0, -12); else if (lastY > window.innerHeight - 90) window.scrollBy(0, 12);
+    apply();
   };
   const end = () => {
     window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end);
-    g.classList.remove('dragging'); dragging = false; if (document.activeElement) document.activeElement.blur();
-    saveZorder(Array.from(zg.children).map((x) => x.dataset.cat));
+    window.removeEventListener('touchmove', tm);
+    sibs.forEach((o) => { o.style.transform = ''; o.style.transition = ''; o.style.position = ''; o.style.zIndex = ''; });
+    g.classList.remove('dragging');
+    const order = sibs.map((x) => x.dataset.cat);
+    const moved = order.splice(from, 1)[0]; order.splice(to, 0, moved);
+    dragging = false; if (document.activeElement) document.activeElement.blur();
+    if (to !== from) saveZorder(order);
     dragPending = false; render();
   };
   window.addEventListener('pointermove', move); window.addEventListener('pointerup', end); window.addEventListener('pointercancel', end);
+  window.addEventListener('touchmove', tm, {passive: false});
+  if (window.__tick) window.__tick();
 }
 function renderZettel(root){
   const open = items.filter((i) => !i.done);
